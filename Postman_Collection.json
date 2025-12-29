@@ -1,0 +1,2530 @@
+{
+  "info": {
+    "name": "Events & Activities Platform - Complete API Collection",
+    "description": "Professional API testing collection with comprehensive workflows for User, Host, and Admin roles",
+    "version": "3.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hostToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hostId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentIntentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reportId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication & Registration",
+      "description": "Complete authentication system for all user roles",
+      "item": [
+        {
+          "name": "Register as USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('userToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('userId', response.data.user._id);",
+                  "    pm.collectionVariables.set('token', response.data.accessToken);",
+                  "    console.log('✅ USER registered successfully');",
+                  "    console.log('User ID:', response.data.user._id);",
+                  "    console.log('Token:', response.data.accessToken.substring(0, 30) + '...');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"user@events.com\",\n  \"password\": \"User@123456\",\n  \"role\": \"user\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "**USER Role Capabilities:**\n- Browse and search events\n- Join free and paid events\n- Make payments for paid events\n- Leave reviews after attending\n- Manage personal profile\n- View booking history\n- Leave events before they start"
+          }
+        },
+        {
+          "name": "Register as HOST",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('hostToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('hostId', response.data.user._id);",
+                  "    console.log('✅ HOST registered successfully');",
+                  "    console.log('Host ID:', response.data.user._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Event Organizer Pro\",\n  \"email\": \"host@events.com\",\n  \"password\": \"Host@123456\",\n  \"role\": \"host\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "**HOST Role Capabilities:**\n- Create and manage events\n- Set event pricing and participant limits\n- View participant lists and details\n- Update event information\n- Cancel events (if no paid bookings)\n- Receive and view reviews\n- Track earnings from paid events\n- Also has all USER capabilities"
+          }
+        },
+        {
+          "name": "Register as ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('adminToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('adminId', response.data.user._id);",
+                  "    console.log('✅ ADMIN registered successfully');",
+                  "    console.log('Admin ID:', response.data.user._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Platform Administrator\",\n  \"email\": \"admin@events.com\",\n  \"password\": \"Admin@123456\",\n  \"role\": \"admin\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "**ADMIN Role Capabilities:**\n- Full platform access and control\n- Manage all users (view, update, delete)\n- Promote users to hosts or demote hosts\n- Manage all events (view, update, delete any event)\n- View platform statistics and analytics\n- Moderate reviews and content\n- View all bookings and transactions\n- Handle disputes and refunds"
+          }
+        },
+        {
+          "name": "Login as USER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('userToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('token', response.data.accessToken);",
+                  "    pm.collectionVariables.set('userId', response.data.user._id);",
+                  "    console.log('✅ Logged in as USER');",
+                  "    console.log('Role:', response.data.user.role);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@events.com\",\n  \"password\": \"User@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as HOST",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('hostToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('token', response.data.accessToken);",
+                  "    pm.collectionVariables.set('hostId', response.data.user._id);",
+                  "    console.log('✅ Logged in as HOST');",
+                  "    console.log('Role:', response.data.user.role);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"host@events.com\",\n  \"password\": \"Host@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('adminToken', response.data.accessToken);",
+                  "    pm.collectionVariables.set('token', response.data.accessToken);",
+                  "    pm.collectionVariables.set('adminId', response.data.user._id);",
+                  "    console.log('✅ Logged in as ADMIN');",
+                  "    console.log('Role:', response.data.user.role);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@events.com\",\n  \"password\": \"Admin@123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get currently authenticated user's complete profile"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout current user and invalidate token"
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@events.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "forgot-password"]
+            },
+            "description": "Send password reset email"
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token-from-email\",\n  \"newPassword\": \"NewPassword@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Reset password using token from email"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👑 ADMIN Complete Workflows",
+      "description": "Full platform control - user management, event moderation, analytics",
+      "item": [
+        {
+          "name": "📊 Dashboard & Analytics",
+          "item": [
+            {
+              "name": "View Platform Statistics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/dashboard/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "dashboard", "stats"]
+                },
+                "description": "View complete platform statistics: total users, hosts, events, bookings, revenue"
+              }
+            },
+            {
+              "name": "View User Growth Analytics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/analytics/users?period=30days",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "analytics", "users"],
+                  "query": [
+                    {
+                      "key": "period",
+                      "value": "30days"
+                    }
+                  ]
+                },
+                "description": "View user registration trends"
+              }
+            },
+            {
+              "name": "View Event Analytics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/analytics/events",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "analytics", "events"]
+                },
+                "description": "View event creation trends and popular categories"
+              }
+            },
+            {
+              "name": "View Revenue Analytics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/analytics/revenue",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "analytics", "revenue"]
+                },
+                "description": "View platform revenue and transaction data"
+              }
+            }
+          ]
+        },
+        {
+          "name": "👥 User Management",
+          "item": [
+            {
+              "name": "View All Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "View complete list of all registered users with pagination"
+              }
+            },
+            {
+              "name": "Search Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?search=john&role=user",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users"],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "john"
+                    },
+                    {
+                      "key": "role",
+                      "value": "user"
+                    }
+                  ]
+                },
+                "description": "Search and filter users by name, email, or role"
+              }
+            },
+            {
+              "name": "View User Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}"]
+                },
+                "description": "View complete details of any user including activity history"
+              }
+            },
+            {
+              "name": "Promote User to Host",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"host\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/role",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}", "role"]
+                },
+                "description": "Change user role from 'user' to 'host'"
+              }
+            },
+            {
+              "name": "Demote Host to User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"role\": \"user\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{hostId}}/role",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{hostId}}", "role"]
+                },
+                "description": "Change host role back to 'user'"
+              }
+            },
+            {
+              "name": "Suspend User Account",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"suspended\",\n  \"reason\": \"Violation of community guidelines\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}", "status"]
+                },
+                "description": "Suspend user account temporarily"
+              }
+            },
+            {
+              "name": "Reactivate User Account",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"active\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}", "status"]
+                },
+                "description": "Reactivate suspended account"
+              }
+            },
+            {
+              "name": "Delete User Account",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}"]
+                },
+                "description": "Permanently delete user account and all associated data"
+              }
+            },
+            {
+              "name": "View User Activity Log",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users/{{userId}}/activity",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users", "{{userId}}", "activity"]
+                },
+                "description": "View complete activity history of user"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🎪 Event Management",
+          "item": [
+            {
+              "name": "View All Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "View all events on platform regardless of host"
+              }
+            },
+            {
+              "name": "Search/Filter Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events?status=cancelled&type=concert",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "cancelled"
+                    },
+                    {
+                      "key": "type",
+                      "value": "concert"
+                    }
+                  ]
+                },
+                "description": "Filter events by status, type, host, or date"
+              }
+            },
+            {
+              "name": "View Event Details (Any Event)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events", "{{eventId}}"]
+                },
+                "description": "View complete details of any event"
+              }
+            },
+            {
+              "name": "Update Any Event",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated by Admin\",\n  \"status\": \"cancelled\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events", "{{eventId}}"]
+                },
+                "description": "Admin can update any event regardless of host"
+              }
+            },
+            {
+              "name": "Delete Any Event",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events", "{{eventId}}"]
+                },
+                "description": "Admin can delete any event and process refunds automatically"
+              }
+            },
+            {
+              "name": "View Flagged/Reported Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/events/reported",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "events", "reported"]
+                },
+                "description": "View events reported by users for policy violations"
+              }
+            }
+          ]
+        },
+        {
+          "name": "💰 Bookings & Payments",
+          "item": [
+            {
+              "name": "View All Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings?page=1&limit=50",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "bookings"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                },
+                "description": "View all bookings across platform"
+              }
+            },
+            {
+              "name": "View Pending Payments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings?paymentStatus=pending",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "bookings"],
+                  "query": [
+                    {
+                      "key": "paymentStatus",
+                      "value": "pending"
+                    }
+                  ]
+                },
+                "description": "View bookings with pending payments"
+              }
+            },
+            {
+              "name": "View Failed Transactions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/bookings?paymentStatus=failed",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "bookings"],
+                  "query": [
+                    {
+                      "key": "paymentStatus",
+                      "value": "failed"
+                    }
+                  ]
+                },
+                "description": "View failed payment transactions"
+              }
+            },
+            {
+              "name": "Process Refund",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"reason\": \"Event cancelled by host\",\n  \"amount\": 500\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/payments/refund",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "payments", "refund"]
+                },
+                "description": "Process refund for cancelled bookings"
+              }
+            },
+            {
+              "name": "View Platform Revenue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/revenue/summary",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "revenue", "summary"]
+                },
+                "description": "View total platform revenue and commission earned"
+              }
+            }
+          ]
+        },
+        {
+          "name": "⭐ Reviews & Content Moderation",
+          "item": [
+            {
+              "name": "View All Reviews",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reviews?page=1&limit=50",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reviews"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "50"
+                    }
+                  ]
+                },
+                "description": "View all reviews on platform"
+              }
+            },
+            {
+              "name": "View Flagged Reviews",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reviews/flagged",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reviews", "flagged"]
+                },
+                "description": "View reviews flagged for inappropriate content"
+              }
+            },
+            {
+              "name": "Delete Any Review",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reviews/{{reviewId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reviews", "{{reviewId}}"]
+                },
+                "description": "Admin can delete any review (e.g., spam, offensive content)"
+              }
+            },
+            {
+              "name": "Moderate Review",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"hidden\",\n  \"moderationNote\": \"Contains inappropriate language\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reviews/{{reviewId}}/moderate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reviews", "{{reviewId}}", "moderate"]
+                },
+                "description": "Hide or approve flagged reviews"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🚨 Reports & Disputes",
+          "item": [
+            {
+              "name": "View All Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reports",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reports"]
+                },
+                "description": "View all user reports (events, users, reviews)"
+              }
+            },
+            {
+              "name": "View Pending Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reports?status=pending",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reports"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending"
+                    }
+                  ]
+                },
+                "description": "View unresolved reports"
+              }
+            },
+            {
+              "name": "Resolve Report",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"resolved\",\n  \"action\": \"user_warned\",\n  \"adminNotes\": \"Warned user about community guidelines\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/reports/{{reportId}}/resolve",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "reports", "{{reportId}}", "resolve"]
+                },
+                "description": "Mark report as resolved with action taken"
+              }
+            }
+          ]
+        },
+        {
+          "name": "⚙️ Platform Configuration",
+          "item": [
+            {
+              "name": "View Platform Settings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings"]
+                },
+                "description": "View current platform configuration"
+              }
+            },
+            {
+              "name": "Update Platform Settings",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"platformCommission\": 10,\n  \"maxEventsPerHost\": 50,\n  \"minEventPrice\": 100,\n  \"maxEventPrice\": 50000\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settings"]
+                },
+                "description": "Update platform-wide settings"
+              }
+            },
+            {
+              "name": "View System Logs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{adminToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/admin/logs?level=error&limit=100",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "logs"],
+                  "query": [
+                    {
+                      "key": "level",
+                      "value": "error"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "100"
+                    }
+                  ]
+                },
+                "description": "View system error logs and activity"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📂 File Upload",
+      "description": "Image upload endpoints for profiles and events",
+      "item": [
+        {
+          "name": "Upload Profile Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/upload/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload", "profile"]
+            },
+            "description": "Upload profile picture to Cloudinary"
+          }
+        },
+        {
+          "name": "Upload Event Image",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/upload/event",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload", "event"]
+            },
+            "description": "Upload event banner/poster to Cloudinary"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Public Endpoints",
+      "description": "Publicly accessible endpoints (no authentication required)",
+      "item": [
+        {
+          "name": "Get Platform Info",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/info",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "info"]
+            },
+            "description": "Get public platform information and statistics"
+          }
+        },
+        {
+          "name": "Get Featured Events",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/featured-events",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "featured-events"]
+            },
+            "description": "Get featured/highlighted events for homepage"
+          }
+        },
+        {
+          "name": "Get Event Categories",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "categories"]
+            },
+            "description": "Get list of all event categories/types"
+          }
+        },
+        {
+          "name": "Get Top Rated Hosts",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/top-hosts?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "top-hosts"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get top-rated hosts based on reviews"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎭 HOST Complete Workflows",
+      "description": "All capabilities for event hosts - create, manage, and monetize events",
+      "item": [
+        {
+          "name": "🎪 Event Management",
+          "item": [
+            {
+              "name": "Create New Event",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('eventId', response.data._id);",
+                      "    console.log('✅ Event created successfully');",
+                      "    console.log('Event ID:', response.data._id);",
+                      "    console.log('Title:', response.data.title);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "title",
+                      "value": "Tech Startup Networking Night 2025",
+                      "type": "text"
+                    },
+                    {
+                      "key": "type",
+                      "value": "tech_meetup",
+                      "type": "text",
+                      "description": "concert, hike, sports, dinner, tech_meetup, etc"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Join us for an exclusive evening of networking with tech entrepreneurs, startup founders, and investors. Great opportunity to pitch ideas, find co-founders, and make valuable connections! Includes refreshments and networking activities.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "date",
+                      "value": "2025-01-15",
+                      "type": "text",
+                      "description": "YYYY-MM-DD format"
+                    },
+                    {
+                      "key": "time",
+                      "value": "18:00",
+                      "type": "text",
+                      "description": "HH:MM format (24hr)"
+                    },
+                    {
+                      "key": "location",
+                      "value": "Tech Hub Dhaka, Banani, Dhaka",
+                      "type": "text"
+                    },
+                    {
+                      "key": "minParticipants",
+                      "value": "10",
+                      "type": "text"
+                    },
+                    {
+                      "key": "maxParticipants",
+                      "value": "50",
+                      "type": "text"
+                    },
+                    {
+                      "key": "joiningFee",
+                      "value": "500",
+                      "type": "text",
+                      "description": "Amount in BDT (0 for free events)"
+                    },
+                    {
+                      "key": "image",
+                      "type": "file",
+                      "src": [],
+                      "description": "Event banner/poster image"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"]
+                },
+                "description": "Create new event with all details and banner image"
+              }
+            },
+            {
+              "name": "Create Free Event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "title",
+                      "value": "Community Hiking Adventure",
+                      "type": "text"
+                    },
+                    {
+                      "key": "type",
+                      "value": "hike",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "Join us for a beautiful morning hike! Perfect for beginners. We'll explore scenic trails and enjoy nature together.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "date",
+                      "value": "2025-01-20",
+                      "type": "text"
+                    },
+                    {
+                      "key": "time",
+                      "value": "06:00",
+                      "type": "text"
+                    },
+                    {
+                      "key": "location",
+                      "value": "Bhawal National Park, Gazipur",
+                      "type": "text"
+                    },
+                    {
+                      "key": "minParticipants",
+                      "value": "5",
+                      "type": "text"
+                    },
+                    {
+                      "key": "maxParticipants",
+                      "value": "20",
+                      "type": "text"
+                    },
+                    {
+                      "key": "joiningFee",
+                      "value": "0",
+                      "type": "text",
+                      "description": "FREE EVENT"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"]
+                },
+                "description": "Create free event (joiningFee = 0)"
+              }
+            },
+            {
+              "name": "View My Hosted Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/my-hosted",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "my-hosted"]
+                },
+                "description": "View all events created by this host"
+              }
+            },
+            {
+              "name": "View Upcoming Hosted Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/my-hosted?status=upcoming",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "my-hosted"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "upcoming"
+                    }
+                  ]
+                },
+                "description": "View only upcoming hosted events"
+              }
+            },
+            {
+              "name": "View Event Participants",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/participants",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "participants"]
+                },
+                "description": "View complete list of participants who joined event"
+              }
+            },
+            {
+              "name": "Update Event Details",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "title",
+                      "value": "Tech Startup Networking Night 2025 - UPDATED",
+                      "type": "text"
+                    },
+                    {
+                      "key": "description",
+                      "value": "UPDATED: Now includes FREE dinner, drinks, and startup pitch session! Don't miss this amazing networking opportunity.",
+                      "type": "text"
+                    },
+                    {
+                      "key": "maxParticipants",
+                      "value": "75",
+                      "type": "text",
+                      "description": "Increased capacity"
+                    },
+                    {
+                      "key": "joiningFee",
+                      "value": "300",
+                      "type": "text",
+                      "description": "Reduced price"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}"]
+                },
+                "description": "Update event details (can only update own events)"
+              }
+            },
+            {
+              "name": "Change Event Status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"cancelled\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "status"]
+                },
+                "description": "Change event status: open, full, cancelled, completed"
+              }
+            },
+            {
+              "name": "Delete Event",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}"]
+                },
+                "description": "Delete own event (cannot delete if paid bookings exist - must refund first)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "💰 Revenue & Payments",
+          "item": [
+            {
+              "name": "View My Earnings Summary",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/hosts/{{hostId}}/earnings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["hosts", "{{hostId}}", "earnings"]
+                },
+                "description": "View total earnings from all events"
+              }
+            },
+            {
+              "name": "View Event Revenue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/revenue",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "revenue"]
+                },
+                "description": "View revenue details for specific event"
+              }
+            },
+            {
+              "name": "View Event Bookings",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/bookings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "bookings"]
+                },
+                "description": "View all bookings for specific event with payment status"
+              }
+            }
+          ]
+        },
+        {
+          "name": "⭐ Reviews Management",
+          "item": [
+            {
+              "name": "View All My Reviews",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/host/{{hostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "host", "{{hostId}}"]
+                },
+                "description": "View all reviews received as host"
+              }
+            },
+            {
+              "name": "View Reviews for Specific Event",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/event/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "event", "{{eventId}}"]
+                },
+                "description": "View reviews for specific hosted event"
+              }
+            },
+            {
+              "name": "View My Rating Statistics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/hosts/{{hostId}}/rating-stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["hosts", "{{hostId}}", "rating-stats"]
+                },
+                "description": "View average rating and review statistics"
+              }
+            }
+          ]
+        },
+        {
+          "name": "👥 Host Also Has USER Capabilities",
+          "item": [
+            {
+              "name": "Join Other Events",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/join",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "join"]
+                },
+                "description": "Hosts can join events created by other hosts"
+              }
+            },
+            {
+              "name": "Leave Reviews for Other Events",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{hostToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"rating\": 5,\n  \"comment\": \"Great event organization! Learned a lot from this experience.\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/reviews",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews"]
+                },
+                "description": "Hosts can review events they attended"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👤 USER Complete Workflows",
+      "description": "All capabilities for regular users - from browsing to attending events",
+      "item": [
+        {
+          "name": "📋 Browse & Search",
+          "item": [
+            {
+              "name": "Browse All Events (Public)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?page=1&limit=10",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Browse all available events - no authentication required"
+              }
+            },
+            {
+              "name": "Search by Event Type",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?type=concert&status=open",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "type",
+                      "value": "concert",
+                      "description": "concert, hike, sports, dinner, tech_meetup, etc"
+                    },
+                    {
+                      "key": "status",
+                      "value": "open",
+                      "description": "open, full, cancelled, completed"
+                    }
+                  ]
+                },
+                "description": "Filter events by type and status"
+              }
+            },
+            {
+              "name": "Search by Location",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?location=Dhaka",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "location",
+                      "value": "Dhaka"
+                    }
+                  ]
+                },
+                "description": "Find events in specific location"
+              }
+            },
+            {
+              "name": "Search by Date Range",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?startDate=2024-12-25&endDate=2025-01-15",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "startDate",
+                      "value": "2024-12-25"
+                    },
+                    {
+                      "key": "endDate",
+                      "value": "2025-01-15"
+                    }
+                  ]
+                },
+                "description": "Find events within date range"
+              }
+            },
+            {
+              "name": "Search Free Events Only",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?isFree=true",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "isFree",
+                      "value": "true"
+                    }
+                  ]
+                },
+                "description": "Show only free events (joiningFee = 0)"
+              }
+            },
+            {
+              "name": "Search by Keyword",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events?search=tech networking",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events"],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "tech networking"
+                    }
+                  ]
+                },
+                "description": "Search events by title or description"
+              }
+            },
+            {
+              "name": "View Single Event Details",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}"]
+                },
+                "description": "View complete event details including host info and current participants"
+              }
+            }
+          ]
+        },
+        {
+          "name": "🎫 Join Events",
+          "item": [
+            {
+              "name": "Join Free Event",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('✅ Successfully joined free event');",
+                      "    console.log('Event:', response.data.title);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/join",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "join"]
+                },
+                "description": "Join a free event - no payment required, instant confirmation"
+              }
+            },
+            {
+              "name": "Create Payment Intent (Paid Event)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('bookingId', response.data.bookingId);",
+                      "    pm.collectionVariables.set('paymentIntentId', response.data.paymentIntentId);",
+                      "    console.log('✅ Payment intent created');",
+                      "    console.log('Booking ID:', response.data.bookingId);",
+                      "    console.log('Amount:', response.data.amount);",
+                      "    console.log('Client Secret:', response.data.clientSecret);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"eventId\": \"{{eventId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/create-intent",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "create-intent"]
+                },
+                "description": "Create Stripe payment intent for paid event - returns clientSecret for frontend"
+              }
+            },
+            {
+              "name": "Confirm Payment",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('✅ Payment confirmed successfully');",
+                      "    console.log('Booking Status:', response.data.paymentStatus);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"paymentIntentId\": \"{{paymentIntentId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payments/confirm",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payments", "confirm"]
+                },
+                "description": "Confirm payment after Stripe processing - finalizes booking"
+              }
+            },
+            {
+              "name": "Leave Event",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/events/{{eventId}}/leave",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["events", "{{eventId}}", "leave"]
+                },
+                "description": "Leave an event before it starts - refund processing if paid"
+              }
+            }
+          ]
+        },
+        {
+          "name": "📱 My Events & Bookings",
+          "item": [
+            {
+              "name": "View My Joined Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}/events",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "events"]
+                },
+                "description": "View all events user has joined (upcoming and past)"
+              }
+            },
+            {
+              "name": "View My Upcoming Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}/events?status=upcoming",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "events"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "upcoming"
+                    }
+                  ]
+                },
+                "description": "View only upcoming events user will attend"
+              }
+            },
+            {
+              "name": "View My Past Events",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}/events?status=past",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "events"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "past"
+                    }
+                  ]
+                },
+                "description": "View events user has attended"
+              }
+            },
+            {
+              "name": "View My Bookings/Payments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/bookings/my-bookings",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["bookings", "my-bookings"]
+                },
+                "description": "View complete booking and payment history"
+              }
+            },
+            {
+              "name": "View Single Booking Details",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/bookings/{{bookingId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["bookings", "{{bookingId}}"]
+                },
+                "description": "View detailed booking information including payment receipt"
+              }
+            }
+          ]
+        },
+        {
+          "name": "⭐ Reviews & Ratings",
+          "item": [
+            {
+              "name": "Create Review After Event",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('reviewId', response.data._id);",
+                      "    console.log('✅ Review created successfully');",
+                      "    console.log('Review ID:', response.data._id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"rating\": 5,\n  \"comment\": \"Amazing event! The host was incredibly organized and welcoming. Met wonderful people and had a fantastic time. Would definitely join again!\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/reviews",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews"]
+                },
+                "description": "Leave review after attending event - rating 1-5 stars (must have joined the event)"
+              }
+            },
+            {
+              "name": "View Event Reviews",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/event/{{eventId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "event", "{{eventId}}"]
+                },
+                "description": "View all reviews for specific event"
+              }
+            },
+            {
+              "name": "View Host Profile & Reviews",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/host/{{hostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "host", "{{hostId}}"]
+                },
+                "description": "View all reviews for a host - check reputation before joining"
+              }
+            },
+            {
+              "name": "Update My Review",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Updated review: Great event overall, minor improvements possible\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "{{reviewId}}"]
+                },
+                "description": "Update your own review - only allowed within 7 days"
+              }
+            },
+            {
+              "name": "Delete My Review",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/reviews/{{reviewId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["reviews", "{{reviewId}}"]
+                },
+                "description": "Delete your own review"
+              }
+            }
+          ]
+        },
+        {
+          "name": "👥 Profile Management",
+          "item": [
+            {
+              "name": "View My Profile",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}"]
+                },
+                "description": "View complete profile information"
+              }
+            },
+            {
+              "name": "View Other User Profile (Public)",
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{hostId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{hostId}}"]
+                },
+                "description": "View public profile of any user/host"
+              }
+            },
+            {
+              "name": "Update My Profile",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "name",
+                      "value": "John Doe Updated",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bio",
+                      "value": "Tech enthusiast | Love meeting new people | Always up for adventures",
+                      "type": "text"
+                    },
+                    {
+                      "key": "location",
+                      "value": "Dhaka, Bangladesh",
+                      "type": "text"
+                    },
+                    {
+                      "key": "interests",
+                      "value": "[\"Technology\", \"Music\", \"Sports\", \"Travel\", \"Photography\", \"Food\"]",
+                      "type": "text",
+                      "description": "JSON array of interests"
+                    },
+                    {
+                      "key": "profileImage",
+                      "type": "file",
+                      "src": [],
+                      "description": "Profile picture file"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}"]
+                },
+                "description": "Update profile with interests, bio, location, and photo"
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{userToken}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currentPassword\": \"User@123456\",\n  \"newPassword\": \"NewUser@123456\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/users/{{userId}}/change-password",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["users", "{{userId}}", "change-password"]
+                },
+                "description": "Change account password"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
