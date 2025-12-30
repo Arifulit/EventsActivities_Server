@@ -8,7 +8,8 @@ import {
   joinEvent,
   leaveEvent,
   saveEvent,
-  getMyEvents
+  getMyEvents,
+  getEventParticipants
 } from '../controllers/event.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -32,6 +33,7 @@ router.get('/:id', authenticate, getEventById);
 router.post('/', authenticate, authorize(UserRole.HOST, UserRole.ADMIN), createEventValidation, validateRequest, createEvent);
 router.put('/:id', authenticate, updateEventValidation, validateRequest, updateEvent);
 router.delete('/:id', authenticate, eventIdValidation, validateRequest, deleteEvent);
+router.get('/:id/participants', authenticate, eventIdValidation, validateRequest, getEventParticipants);
 router.post('/:id/join', authenticate, eventIdValidation, validateRequest, joinEvent);
 router.post('/:id/leave', authenticate, eventIdValidation, validateRequest, leaveEvent);
 router.post('/:id/save', authenticate, eventIdValidation, validateRequest, saveEvent);

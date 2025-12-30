@@ -323,3 +323,45 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<any>
     return errorResponse(res, error.message, 500);
   }
 };
+
+export const getEventParticipants = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { eventId } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string || '';
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    // Only host or admin can view participants
+    if (event.hostId.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+      return errorResponse(res, 'Access denied. Only event host can view participants', 403);
+    }
+
+    const query: any = { _id: { $in: event.participants } };
+    
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const participants = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments(query);
+
+    return paginatedResponse(res, participants, page, limit, total, 'Event participants retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};

@@ -24,8 +24,7 @@ router.get('/:id/public', getPublicUserProfile);
 // Protected routes
 router.get('/', authenticate, authorize(UserRole.ADMIN), getUsers);
 router.get('/:id', authenticate, getUserById);
-router.put('/:id', authenticate, updateUser);
-router.post('/:id/upload-profile-image', authenticate, upload.single('profileImage'), uploadUserProfileImage);
+router.put('/:id', authenticate, upload.single('profileImage'), updateUser);
 router.delete('/:id', authenticate, authorize(UserRole.ADMIN), deleteUser);
 router.patch('/:id/verify', authenticate, authorize(UserRole.ADMIN), toggleUserVerification);
 

@@ -33,7 +33,7 @@ const clearAuthCookies = (res: Response) => {
 
 export const register = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { fullName, email, password, role, location } = req.body;
+    const { fullName, email, password, role, location, city } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -45,7 +45,7 @@ export const register = async (req: Request, res: Response): Promise<any> => {
       email,
       password,
       role: role || UserRole.USER,
-      location: location || { city: 'Unknown' }
+      location: location || { city: city || 'Unknown' }
     });
 
     const accessToken = generateToken(user._id.toString(), user.role);

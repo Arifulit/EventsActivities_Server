@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { UserRole } from '../middleware/role.middleware';
 import { User } from '../models/user.model';
 import { Event } from '../models/event.model';
 import { successResponse, errorResponse } from '../utils/response';
@@ -49,6 +48,30 @@ export const updateUserRole = async (req: Request, res: Response): Promise<any> 
   }
 };
 
+export const verifyUser = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const { isVerified = true } = req.body;
+
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    user.isVerified = typeof isVerified === 'boolean' ? isVerified : true;
+    await user.save();
+
+    return successResponse(
+      res,
+      user,
+      `User ${user.isVerified ? 'verified' : 'unverified'} successfully`
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
 export const deleteUser = async (req: Request, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
@@ -61,6 +84,47 @@ export const deleteUser = async (req: Request, res: Response): Promise<any> => {
     await Event.deleteMany({ hostId: userId });
 
     return successResponse(res, null, 'User deleted successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const banUser = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isActive: false },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    return successResponse(res, user, `User banned successfully${reason ? ': ' + reason : ''}`);
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const unbanUser = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { isActive: true },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    return successResponse(res, user, 'User unbanned successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

@@ -125,16 +125,44 @@ export const getPublicUserProfile = async (req: Request, res: Response): Promise
 export const updateUser = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const { fullName, bio, interests, location, profileImage, role } = req.body;
+    const { fullName, bio, interests, location, role } = req.body;
 
     // Only admins can change roles
     if (role && req.user.role !== UserRole.ADMIN) {
       return errorResponse(res, 'Only admins can change user roles', 403);
     }
 
-    const updateData: any = { fullName, bio, interests, location, profileImage };
-    if (role && req.user.role === UserRole.ADMIN) {
-      updateData.role = role;
+    const updateData: any = {};
+    
+    if (fullName) updateData.fullName = fullName;
+    if (bio) updateData.bio = bio;
+    if (interests) updateData.interests = Array.isArray(interests) ? interests : JSON.parse(interests || '[]');
+    
+    // Handle location - can be JSON string or plain string
+    if (location) {
+      if (typeof location === 'object') {
+        updateData.location = location;
+      } else if (typeof location === 'string') {
+        try {
+          // Try parsing as JSON first
+          updateData.location = JSON.parse(location);
+        } catch (e) {
+          // If not JSON, treat as plain "City, Country" string
+          const [city, area] = location.split(',').map((s: string) => s.trim());
+          updateData.location = {
+            city: city || '',
+            area: area || ''
+          };
+        }
+      }
+    }
+    
+    if (role && req.user.role === UserRole.ADMIN) updateData.role = role;
+
+    // Handle file upload if present
+    if (req.file) {
+      const imageUrl = await uploadImage(req.file.buffer, 'profile-images');
+      updateData.profileImage = imageUrl;
     }
 
     const user = await User.findByIdAndUpdate(
