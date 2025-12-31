@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Review } from '../models/review.model';
 import { Event } from '../models/event.model';
+import { Booking } from '../models/booking.model';
 import { User } from '../models/user.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -10,25 +11,23 @@ export const createReview = async (req: AuthRequest, res: Response): Promise<any
   try {
     const { eventId, rating, comment } = req.body;
 
-    // Check if user has attended the event
+    // Check if event exists
     const event = await Event.findById(eventId);
     if (!event) {
       return errorResponse(res, 'Event not found', 404);
     }
 
-    // Verify user was a participant
-    if (!event.participants.includes(req.user._id)) {
+    // Verify user attended: either already in participants OR has a confirmed booking
+    const isParticipant = event.participants.includes(req.user._id);
+    const hasConfirmedBooking = await Booking.exists({
+      eventId,
+      userId: req.user._id,
+      status: 'confirmed'
+    });
+
+    if (!isParticipant && !hasConfirmedBooking) {
       return errorResponse(res, 'You can only review events you have attended', 400);
     }
-
-    // Temporarily allow reviews for all attended events for testing
-    // TODO: Re-enable date/time validation after testing
-    console.log('Event status:', event.status);
-    console.log('Event date:', event.date);
-    console.log('Event time:', event.time);
-    
-    // For now, just check if user is a participant (already checked above)
-    // This allows testing of the review functionality
 
     // Check if user already reviewed this event
     const existingReview = await Review.findOne({

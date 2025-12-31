@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Event } from '../models/event.model';
+import { User } from '../models/user.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -326,7 +327,8 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<any>
 
 export const getEventParticipants = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { eventId } = req.params;
+    // Route param is defined as ":id" in event.routes.ts
+    const { id: eventId } = req.params;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const search = req.query.search as string || '';

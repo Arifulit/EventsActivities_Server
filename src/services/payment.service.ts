@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { Booking } from '../models/booking.model';
 import { Event } from '../models/event.model';
+import { Payment } from '../models/payment.model';
 import { User } from '../models/user.model';
 import { config } from '../config/env';
 
@@ -26,6 +27,7 @@ export interface RefundData {
 export interface PaymentMetadata {
   eventId: string;
   userId: string;
+  hostId?: string;
   bookingId?: string;
   quantity: number;
 }
@@ -72,6 +74,7 @@ export class PaymentService {
       metadata: {
         eventId,
         userId,
+        hostId: event.hostId.toString(),
         quantity: quantity.toString()
       },
       automatic_payment_methods: {
@@ -104,9 +107,17 @@ export class PaymentService {
       const paymentMetadata: PaymentMetadata = {
         eventId: metadata.eventId,
         userId: metadata.userId,
+        hostId: metadata.hostId,
         bookingId: metadata.bookingId || '', // Generate bookingId if not present
         quantity: parseInt(metadata.quantity)
       };
+
+      const event = await Event.findById(paymentMetadata.eventId);
+      if (!event) {
+        throw new Error('Event not found for payment');
+      }
+
+      const paymentCurrency = (paymentIntent.currency || config.stripe.currency).toUpperCase();
 
       // Create booking
       const existingBooking = await Booking.findOne({
@@ -121,6 +132,7 @@ export class PaymentService {
       const booking = new Booking({
         eventId: paymentMetadata.eventId,
         userId: paymentMetadata.userId,
+        hostId: event.hostId,
         quantity: paymentMetadata.quantity,
         paymentIntentId,
         amount: paymentIntent.amount / 100, // Convert back to dollars
@@ -132,6 +144,19 @@ export class PaymentService {
       });
 
       await booking.save();
+
+      await Payment.create({
+        bookingId: booking._id,
+        userId: booking.userId,
+        hostId: event.hostId,
+        eventId: event._id,
+        amount: booking.amount,
+        currency: paymentCurrency,
+        status: 'succeeded',
+        paymentMethod: 'stripe',
+        paymentIntentId,
+        processedAt: new Date()
+      });
 
       // Update event booking count
       await Event.findByIdAndUpdate(paymentMetadata.eventId, {
@@ -187,6 +212,17 @@ export class PaymentService {
       booking.updatedAt = new Date();
 
       await booking.save();
+
+      await Payment.findOneAndUpdate(
+        { bookingId: booking._id },
+        {
+          status: 'refunded',
+          refundId: refund.id,
+          refundAmount: refundAmount / 100,
+          refundReason: reason,
+          processedAt: new Date()
+        }
+      );
 
       // Update event booking count
       await Event.findByIdAndUpdate(booking.eventId, {

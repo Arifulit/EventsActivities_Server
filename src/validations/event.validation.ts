@@ -23,8 +23,10 @@ export const createEventValidation: ValidationChain[] = [
     .withMessage('Please provide a valid date')
     .custom((value) => {
       const date = new Date(value);
-      if (date <= new Date()) {
-        throw new Error('Event date must be in the future');
+      // Allow same-day events by requiring the date-time to be at least now
+      // instead of strictly greater than now.
+      if (date < new Date()) {
+        throw new Error('Event date must be now or in the future');
       }
       return true;
     }),
