@@ -8,7 +8,9 @@ import {
   toggleUserVerification,
   getTopHosts,
   uploadUserProfileImage,
-  discoverUsers
+  discoverUsers,
+  getUserEvents,
+  changePassword
 } from '../controllers/user.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -19,10 +21,12 @@ const router = Router();
 // Public routes
 router.get('/discover', discoverUsers);
 router.get('/top-hosts', getTopHosts);
-router.get('/:id/public', getPublicUserProfile);
 
 // Protected routes
 router.get('/', authenticate, authorize(UserRole.ADMIN), getUsers);
+router.get('/:userId/events', authenticate, getUserEvents);
+router.post('/:userId/change-password', authenticate, changePassword);
+router.get('/:id/public', getPublicUserProfile);
 router.get('/:id', authenticate, getUserById);
 router.put('/:id', authenticate, upload.single('profileImage'), updateUser);
 router.delete('/:id', authenticate, authorize(UserRole.ADMIN), deleteUser);

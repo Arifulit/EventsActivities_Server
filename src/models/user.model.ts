@@ -25,6 +25,8 @@ export interface IUser extends Document {
   hostedEvents: mongoose.Types.ObjectId[];
   joinedEvents: mongoose.Types.ObjectId[];
   savedEvents: mongoose.Types.ObjectId[];
+  resetPasswordToken?: string;
+  resetPasswordExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -119,7 +121,15 @@ const userSchema = new Schema<IUser>(
     savedEvents: [{
       type: Schema.Types.ObjectId,
       ref: 'Event'
-    }]
+    }],
+    resetPasswordToken: {
+      type: String,
+      select: false
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false
+    }
   },
   {
     timestamps: true

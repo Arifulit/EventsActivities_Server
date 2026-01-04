@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
 import { config } from '../config/env';
 import { uploadImage } from '../services/cloudinary.service';
+import crypto from 'crypto';
 
 const isProduction = config.nodeEnv === 'production';
 const baseCookieOptions: CookieOptions = {
@@ -226,6 +227,96 @@ export const uploadProfileImage = async (req: AuthRequest, res: Response): Promi
     }
 
     return successResponse(res, { profileImage: imageUrl, user: updatedUser }, 'Profile image uploaded successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return errorResponse(res, 'Email is required', 400);
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      // For security, don't reveal if user exists or not
+      return successResponse(
+        res,
+        { message: 'If the email exists, a reset link will be sent' },
+        'Password reset initiated'
+      );
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    // Set token and expiration (10 minutes)
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    // In a real application, you would send an email here
+    // For now, we'll return the token in the response (NOT recommended in production)
+    const resetUrl = `${config.frontendUrl || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+
+    // TODO: Send email with reset link
+    // await sendEmail({
+    //   to: user.email,
+    //   subject: 'Password Reset Request',
+    //   html: `Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 10 minutes.`
+    // });
+
+    return successResponse(
+      res,
+      {
+        message: 'Password reset link sent to email',
+        // Remove this in production - only for testing
+        resetToken,
+        resetUrl
+      },
+      'Password reset initiated'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return errorResponse(res, 'Token and new password are required', 400);
+    }
+
+    if (newPassword.length < 6) {
+      return errorResponse(res, 'Password must be at least 6 characters long', 400);
+    }
+
+    // Hash the token to compare with database
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid reset token
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    }).select('+resetPasswordToken +resetPasswordExpire');
+
+    if (!user) {
+      return errorResponse(res, 'Invalid or expired reset token', 400);
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    return successResponse(res, null, 'Password reset successful');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

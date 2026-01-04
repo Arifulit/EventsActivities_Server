@@ -24,18 +24,21 @@ router.get('/', getEvents);
 // Protected routes - specific routes first
 router.get('/my-events', authenticate, getMyEvents);
 router.get('/hosted-events', authenticate, getMyEvents);
+router.get('/my-hosted', authenticate, getMyEvents);
+router.get('/my-joined', authenticate, getMyEvents);
+router.get('/my-saved', authenticate, getMyEvents);
 router.get('/my/:type', authenticate, getMyEvents);
 
-// Public routes - parameterized routes last
-router.get('/:id', authenticate, getEventById);
-
-// Protected routes
+// Protected routes - specific paths before parameterized :id routes
 router.post('/', authenticate, authorize(UserRole.HOST, UserRole.ADMIN), createEventValidation, validateRequest, createEvent);
-router.put('/:id', authenticate, updateEventValidation, validateRequest, updateEvent);
-router.delete('/:id', authenticate, eventIdValidation, validateRequest, deleteEvent);
 router.get('/:id/participants', authenticate, eventIdValidation, validateRequest, getEventParticipants);
 router.post('/:id/join', authenticate, eventIdValidation, validateRequest, joinEvent);
 router.post('/:id/leave', authenticate, eventIdValidation, validateRequest, leaveEvent);
 router.post('/:id/save', authenticate, eventIdValidation, validateRequest, saveEvent);
+
+// Parameterized routes last
+router.get('/:id', authenticate, getEventById);
+router.put('/:id', authenticate, updateEventValidation, validateRequest, updateEvent);
+router.delete('/:id', authenticate, eventIdValidation, validateRequest, deleteEvent);
 
 export default router;

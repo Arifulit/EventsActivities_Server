@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { User } from '../models/user.model';
+import { Event } from '../models/event.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
 import { uploadImage } from '../services/cloudinary.service';
+import { comparePassword, hashPassword } from '../utils/hash';
 
 export const getUsers = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
@@ -311,6 +313,189 @@ export const discoverUsers = async (req: Request, res: Response): Promise<any> =
     const total = await User.countDocuments(query);
 
     return paginatedResponse(res, users, page, limit, total, 'Users discovered successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getUserEvents = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const status = req.query.status as string; // 'hosted', 'joined', 'saved', 'upcoming', 'past', or 'all'
+
+    const skip = (page - 1) * limit;
+    const now = new Date();
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    let events;
+    let total;
+
+    if (status === 'hosted') {
+      // Get events hosted by the user
+      events = await Event.find({ hostId: userId })
+        .select('_id title description category type location.city eventDate image price')
+        .sort({ eventDate: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Event.countDocuments({ hostId: userId });
+    } else if (status === 'joined') {
+      // Get events joined by the user
+      events = await Event.find({ participants: userId })
+        .select('_id title description category type location.city eventDate image price')
+        .sort({ eventDate: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Event.countDocuments({ participants: userId });
+    } else if (status === 'saved') {
+      // Get events saved/bookmarked by the user
+      events = await Event.find({ savedBy: userId })
+        .select('_id title description category type location.city eventDate image price')
+        .sort({ eventDate: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Event.countDocuments({ savedBy: userId });
+    } else if (status === 'upcoming') {
+      // Get upcoming events (hosted + joined) with future dates
+      events = await Event.find({
+        eventDate: { $gte: now },
+        $or: [
+          { hostId: userId },
+          { participants: userId }
+        ]
+      })
+        .select('_id title description category type location.city eventDate image price hostId')
+        .sort({ eventDate: 1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Event.countDocuments({
+        eventDate: { $gte: now },
+        $or: [
+          { hostId: userId },
+          { participants: userId }
+        ]
+      });
+    } else if (status === 'past') {
+      // Get past events (hosted + joined) with past dates
+      events = await Event.find({
+        eventDate: { $lt: now },
+        $or: [
+          { hostId: userId },
+          { participants: userId }
+        ]
+      })
+        .select('_id title description category type location.city eventDate image price hostId')
+        .sort({ eventDate: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await Event.countDocuments({
+        eventDate: { $lt: now },
+        $or: [
+          { hostId: userId },
+          { participants: userId }
+        ]
+      });
+    } else {
+      // Get all events (hosted + joined + saved) with aggregation
+      const hostedCount = await Event.countDocuments({ hostId: userId });
+      const joinedCount = await Event.countDocuments({ participants: userId });
+      const savedCount = await Event.countDocuments({ savedBy: userId });
+
+      const allEvents = await Event.aggregate([
+        {
+          $facet: {
+            hosted: [
+              { $match: { hostId: new (require('mongoose').Types.ObjectId)(userId) } },
+              { $sort: { eventDate: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+              { $project: { title: 1, description: 1, category: 1, type: 1, 'location.city': 1, eventDate: 1, image: 1, price: 1, _id: 1 } }
+            ],
+            joined: [
+              { $match: { participants: new (require('mongoose').Types.ObjectId)(userId) } },
+              { $sort: { eventDate: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+              { $project: { title: 1, description: 1, category: 1, type: 1, 'location.city': 1, eventDate: 1, image: 1, price: 1, _id: 1 } }
+            ],
+            saved: [
+              { $match: { savedBy: new (require('mongoose').Types.ObjectId)(userId) } },
+              { $sort: { eventDate: -1 } },
+              { $skip: skip },
+              { $limit: limit },
+              { $project: { title: 1, description: 1, category: 1, type: 1, 'location.city': 1, eventDate: 1, image: 1, price: 1, _id: 1 } }
+            ]
+          }
+        }
+      ]);
+
+      return paginatedResponse(res, {
+        hosted: allEvents[0].hosted,
+        joined: allEvents[0].joined,
+        saved: allEvents[0].saved,
+        summary: { hostedCount, joinedCount, savedCount }
+      }, page, limit, hostedCount + joinedCount + savedCount, 'User events retrieved successfully');
+    }
+
+    return paginatedResponse(res, events, page, limit, total, 'User events retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const changePassword = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+
+    // Verify authenticated user is changing their own password or is admin
+    if (req.user?.id !== userId && req.user?.role !== UserRole.ADMIN) {
+      return errorResponse(res, 'Unauthorized to change this password', 403);
+    }
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return errorResponse(res, 'Current password and new password are required', 400);
+    }
+
+    if (newPassword.length < 6) {
+      return errorResponse(res, 'New password must be at least 6 characters', 400);
+    }
+
+    // Get user with password field
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    // Verify current password
+    const isPasswordValid = await comparePassword(currentPassword, user.password);
+    if (!isPasswordValid) {
+      return errorResponse(res, 'Current password is incorrect', 401);
+    }
+
+    // Check if new password is same as current
+    const isSamePassword = await comparePassword(newPassword, user.password);
+    if (isSamePassword) {
+      return errorResponse(res, 'New password must be different from current password', 400);
+    }
+
+    // Hash and update password
+    user.password = await hashPassword(newPassword);
+    await user.save();
+
+    return successResponse(res, null, 'Password changed successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

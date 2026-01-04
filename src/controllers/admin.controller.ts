@@ -6,8 +6,60 @@ import { successResponse, errorResponse } from '../utils/response';
 
 export const getAllUsers = async (req: Request, res: Response): Promise<any> => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
-    return successResponse(res, users, 'Users retrieved successfully');
+    const { search, role, isActive, isVerified, page = 1, limit = 20 } = req.query;
+    
+    // Build query filter
+    const filter: any = {};
+    
+    // Search by name or email
+    if (search) {
+      filter.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Filter by role
+    if (role) {
+      filter.role = role;
+    }
+    
+    // Filter by active status
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    }
+    
+    // Filter by verified status
+    if (isVerified !== undefined) {
+      filter.isVerified = isVerified === 'true';
+    }
+    
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+    
+    const users = await User.find(filter)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+    
+    const total = await User.countDocuments(filter);
+    
+    return successResponse(
+      res, 
+      { 
+        users, 
+        pagination: { 
+          total, 
+          page: pageNum, 
+          limit: limitNum, 
+          pages: Math.ceil(total / limitNum) 
+        } 
+      }, 
+      'Users retrieved successfully'
+    );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -23,6 +75,75 @@ export const getUserByIdAdmin = async (req: Request, res: Response): Promise<any
     }
 
     return successResponse(res, user, 'User retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getUserActivity = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    // Get hosted events
+    const hostedEvents = await Event.find({ hostId: userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select('title category date status attendees createdAt');
+
+    // Get joined/attended events
+    const joinedEvents = await Event.find({ 'attendees.userId': userId })
+      .sort({ date: -1 })
+      .limit(10)
+      .select('title category date status attendees');
+
+    // Get bookings made by user
+    const { Booking } = require('../models/booking.model');
+    const bookings = await Booking.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('eventId', 'title date category');
+
+    // Get reviews given by user
+    const reviewsGiven = await Review.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('eventId', 'title category');
+
+    // Get reviews received (for events hosted by user)
+    const hostedEventIds = hostedEvents.map(e => e._id);
+    const reviewsReceived = await Review.find({ eventId: { $in: hostedEventIds } })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('eventId', 'title category')
+      .populate('userId', 'fullName profileImage');
+
+    // Calculate statistics
+    const stats = {
+      totalHostedEvents: await Event.countDocuments({ hostId: userId }),
+      totalJoinedEvents: await Event.countDocuments({ 'attendees.userId': userId }),
+      totalBookings: await Booking.countDocuments({ userId }),
+      totalReviewsGiven: await Review.countDocuments({ userId }),
+      totalReviewsReceived: await Review.countDocuments({ eventId: { $in: hostedEventIds } })
+    };
+
+    return successResponse(
+      res,
+      {
+        user,
+        stats,
+        hostedEvents,
+        joinedEvents,
+        bookings,
+        reviewsGiven,
+        reviewsReceived
+      },
+      'User activity retrieved successfully'
+    );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -44,6 +165,41 @@ export const updateUserRole = async (req: Request, res: Response): Promise<any> 
     }
 
     return successResponse(res, user, 'User role updated successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const updateUserStatus = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const { isActive, isVerified } = req.body;
+
+    const updateData: any = {};
+    
+    if (isActive !== undefined) {
+      updateData.isActive = isActive;
+    }
+    
+    if (isVerified !== undefined) {
+      updateData.isVerified = isVerified;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return errorResponse(res, 'No status fields provided', 400);
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    return successResponse(res, user, 'User status updated successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -133,11 +289,138 @@ export const unbanUser = async (req: Request, res: Response): Promise<any> => {
 
 export const getAllEventsAdmin = async (req: Request, res: Response): Promise<any> => {
   try {
-    const events = await Event.find()
-      .populate('hostId', 'name email')
-      .sort({ createdAt: -1 });
+    const { search, category, type, status, hostId, page = 1, limit = 20 } = req.query;
+    
+    // Build query filter
+    const filter: any = {};
+    
+    // Search by title or description
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Filter by category
+    if (category) {
+      filter.category = category;
+    }
+    
+    // Filter by type
+    if (type) {
+      filter.type = type;
+    }
+    
+    // Filter by status
+    if (status) {
+      filter.status = status;
+    }
+    
+    // Filter by host
+    if (hostId) {
+      filter.hostId = hostId;
+    }
+    
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+    
+    const events = await Event.find(filter)
+      .populate('hostId', 'fullName email profileImage')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
 
-    return successResponse(res, events, 'Events retrieved successfully');
+    const total = await Event.countDocuments(filter);
+
+    return successResponse(
+      res,
+      {
+        events,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum)
+        }
+      },
+      'Events retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getEventByIdAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { eventId } = req.params;
+    
+    const event = await Event.findById(eventId)
+      .populate('hostId', 'fullName email profileImage role averageRating')
+      .populate('participants', 'fullName email profileImage')
+      .populate('waitingList', 'fullName email profileImage');
+    
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    // Get additional stats
+    const { Booking } = require('../models/booking.model');
+    const bookingStats = await Booking.aggregate([
+      { $match: { eventId: event._id } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const reviews = await Review.find({ eventId })
+      .populate('userId', 'fullName profileImage')
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    const reviewStats = {
+      total: await Review.countDocuments({ eventId }),
+      averageRating: event.averageRating || 0
+    };
+
+    return successResponse(
+      res,
+      {
+        event,
+        bookingStats,
+        reviews,
+        reviewStats
+      },
+      'Event retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const updateEventAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { eventId } = req.params;
+    const updateData = req.body;
+
+    // Admin can update any field
+    const event = await Event.findByIdAndUpdate(
+      eventId,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('hostId', 'fullName email profileImage');
+
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    return successResponse(res, event, 'Event updated successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -174,6 +457,87 @@ export const deleteEventAdmin = async (req: Request, res: Response): Promise<any
     }
 
     return successResponse(res, null, 'Event deleted successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getAllBookingsAdmin = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId, eventId, status, startDate, endDate, page = 1, limit = 20 } = req.query;
+    
+    // Import Booking model
+    const { Booking } = require('../models/booking.model');
+    
+    // Build query filter
+    const filter: any = {};
+    
+    // Filter by userId
+    if (userId) {
+      filter.userId = userId;
+    }
+    
+    // Filter by eventId
+    if (eventId) {
+      filter.eventId = eventId;
+    }
+    
+    // Filter by status
+    if (status) {
+      filter.status = status;
+    }
+    
+    // Filter by date range
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate as string);
+      }
+      if (endDate) {
+        filter.createdAt.$lte = new Date(endDate as string);
+      }
+    }
+    
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+    
+    const bookings = await Booking.find(filter)
+      .populate('userId', 'fullName email profileImage')
+      .populate('eventId', 'title category date price')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+    
+    const total = await Booking.countDocuments(filter);
+    
+    // Calculate summary statistics
+    const stats = await Booking.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        bookings,
+        stats,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum)
+        }
+      },
+      'Bookings retrieved successfully'
+    );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -337,6 +701,42 @@ export const rejectHost = async (req: Request, res: Response): Promise<any> => {
   }
 };
 
+export const getReportedEvents = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Find flagged/reported events
+    const events = await Event.find({ 'metadata.flagged': true })
+      .populate('hostId', 'fullName email profileImage')
+      .sort({ 'metadata.flaggedAt': -1 })
+      .skip(skip)
+      .limit(limitNum);
+    
+    const total = await Event.countDocuments({ 'metadata.flagged': true });
+    
+    return successResponse(
+      res,
+      {
+        events,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum)
+        }
+      },
+      'Reported events retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
 export const flagEvent = async (req: Request, res: Response): Promise<any> => {
   try {
     const { eventId } = req.params;
@@ -418,6 +818,599 @@ export const resolveFlaggedContent = async (req: Request, res: Response): Promis
     } else {
       return errorResponse(res, 'Invalid action', 400);
     }
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getUserAnalytics = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { period = '30days' } = req.query;
+    
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case '7days':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30days':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90days':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case '1year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 30);
+    }
+
+    // Get user statistics
+    const totalUsers = await User.countDocuments();
+    const newUsers = await User.countDocuments({ createdAt: { $gte: startDate } });
+    const activeUsers = await User.countDocuments({ isActive: true });
+    const verifiedUsers = await User.countDocuments({ isVerified: true });
+    const usersByRole = await User.aggregate([
+      { $group: { _id: '$role', count: { $sum: 1 } } }
+    ]);
+
+    // Get daily user registrations for the period
+    const dailyRegistrations = await User.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Get top users by hosted events
+    const topHosts = await User.aggregate([
+      {
+        $project: {
+          fullName: 1,
+          email: 1,
+          hostedEventsCount: { $size: { $ifNull: ['$hostedEvents', []] } },
+          averageRating: 1
+        }
+      },
+      { $sort: { hostedEventsCount: -1 } },
+      { $limit: 10 }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        period,
+        totalUsers,
+        newUsers,
+        activeUsers,
+        verifiedUsers,
+        usersByRole,
+        dailyRegistrations,
+        topHosts
+      },
+      'User analytics retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getEventAnalytics = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { period = '30days' } = req.query;
+    
+    // Calculate date range
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case '7days':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30days':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90days':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case '1year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 30);
+    }
+
+    // Get event statistics
+    const totalEvents = await Event.countDocuments();
+    const newEvents = await Event.countDocuments({ createdAt: { $gte: startDate } });
+    const upcomingEvents = await Event.countDocuments({ date: { $gte: now } });
+    const pastEvents = await Event.countDocuments({ date: { $lt: now } });
+    
+    const eventsByCategory = await Event.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } }
+    ]);
+
+    const eventsByStatus = await Event.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    // Daily event creations
+    const dailyEventCreations = await Event.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Top rated events
+    const topRatedEvents = await Event.find()
+      .sort({ averageRating: -1, totalReviews: -1 })
+      .limit(10)
+      .select('title averageRating totalReviews category price');
+
+    // Most popular events by attendees
+    const popularEvents = await Event.aggregate([
+      {
+        $project: {
+          title: 1,
+          category: 1,
+          attendeesCount: { $size: { $ifNull: ['$attendees', []] } },
+          maxAttendees: 1
+        }
+      },
+      { $sort: { attendeesCount: -1 } },
+      { $limit: 10 }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        period,
+        totalEvents,
+        newEvents,
+        upcomingEvents,
+        pastEvents,
+        eventsByCategory,
+        eventsByStatus,
+        dailyEventCreations,
+        topRatedEvents,
+        popularEvents
+      },
+      'Event analytics retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getRevenueAnalytics = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { period = '30days' } = req.query;
+    
+    // Calculate date range
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case '7days':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30days':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90days':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case '1year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 30);
+    }
+
+    // Import Booking model dynamically if not already imported
+    const { Booking } = require('../models/booking.model');
+
+    // Total revenue from bookings
+    const revenueData = await Booking.aggregate([
+      { $match: { createdAt: { $gte: startDate }, status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          totalBookings: { $sum: 1 },
+          averageBookingValue: { $avg: '$amount' }
+        }
+      }
+    ]);
+
+    // Daily revenue
+    const dailyRevenue = await Booking.aggregate([
+      { $match: { createdAt: { $gte: startDate }, status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Revenue by event category
+    const revenueByCategory = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $lookup: {
+          from: 'events',
+          localField: 'eventId',
+          foreignField: '_id',
+          as: 'event'
+        }
+      },
+      { $unwind: '$event' },
+      {
+        $group: {
+          _id: '$event.category',
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } }
+    ]);
+
+    // Top revenue generating events
+    const topRevenueEvents = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: '$eventId',
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'events',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'event'
+        }
+      },
+      { $unwind: '$event' },
+      {
+        $project: {
+          eventId: '$_id',
+          eventTitle: '$event.title',
+          category: '$event.category',
+          revenue: 1,
+          bookings: 1
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        period,
+        summary: revenueData[0] || { totalRevenue: 0, totalBookings: 0, averageBookingValue: 0 },
+        dailyRevenue,
+        revenueByCategory,
+        topRevenueEvents
+      },
+      'Revenue analytics retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const processRefund = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { bookingId, reason } = req.body;
+
+    if (!bookingId) {
+      return errorResponse(res, 'Booking ID is required', 400);
+    }
+
+    const { Booking } = require('../models/booking.model');
+    const { Payment } = require('../models/payment.model');
+
+    // Find booking
+    const booking = await Booking.findById(bookingId).populate('eventId userId');
+    if (!booking) {
+      return errorResponse(res, 'Booking not found', 404);
+    }
+
+    if (booking.status === 'refunded') {
+      return errorResponse(res, 'Booking already refunded', 400);
+    }
+
+    // Find associated payment
+    const payment = await Payment.findOne({ bookingId });
+    if (!payment) {
+      return errorResponse(res, 'Payment record not found', 404);
+    }
+
+    // Update booking status
+    booking.status = 'refunded';
+    await booking.save();
+
+    // Update payment status
+    payment.status = 'refunded';
+    payment.refundReason = reason || 'Admin refund';
+    payment.refundedAt = new Date();
+    await payment.save();
+
+    return successResponse(
+      res,
+      {
+        booking,
+        payment,
+        refundAmount: booking.amount,
+        refundedAt: payment.refundedAt
+      },
+      'Refund processed successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getRefundHistory = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId, eventId, startDate, endDate, page = 1, limit = 20 } = req.query;
+
+    const { Booking } = require('../models/booking.model');
+
+    // Build filter
+    const filter: any = { status: 'refunded' };
+
+    if (userId) {
+      filter.userId = userId;
+    }
+
+    if (eventId) {
+      filter.eventId = eventId;
+    }
+
+    if (startDate || endDate) {
+      filter.updatedAt = {};
+      if (startDate) {
+        filter.updatedAt.$gte = new Date(startDate as string);
+      }
+      if (endDate) {
+        filter.updatedAt.$lte = new Date(endDate as string);
+      }
+    }
+
+    // Pagination
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    const refunds = await Booking.find(filter)
+      .populate('userId', 'fullName email profileImage')
+      .populate('eventId', 'title category price')
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await Booking.countDocuments(filter);
+
+    // Calculate refund summary
+    const summary = await Booking.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalRefunded: { $sum: '$amount' },
+          refundCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        refunds,
+        summary: summary[0] || { totalRefunded: 0, refundCount: 0 },
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum)
+        }
+      },
+      'Refund history retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getRevenueSummary = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { Booking } = require('../models/booking.model');
+
+    // Get overall revenue summary
+    const revenueSummary = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          totalBookings: { $sum: 1 },
+          averageBookingValue: { $avg: '$amount' },
+          minBookingValue: { $min: '$amount' },
+          maxBookingValue: { $max: '$amount' }
+        }
+      }
+    ]);
+
+    // Revenue by booking status
+    const revenueByStatus = await Booking.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          amount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    // Revenue by event category
+    const revenueByCategory = await Booking.aggregate([
+      {
+        $lookup: {
+          from: 'events',
+          localField: 'eventId',
+          foreignField: '_id',
+          as: 'event'
+        }
+      },
+      { $unwind: '$event' },
+      {
+        $group: {
+          _id: '$event.category',
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } }
+    ]);
+
+    // Top earning events
+    const topEarningEvents = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: '$eventId',
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'events',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'event'
+        }
+      },
+      { $unwind: '$event' },
+      {
+        $project: {
+          eventId: '$_id',
+          eventTitle: '$event.title',
+          category: '$event.category',
+          revenue: 1,
+          bookings: 1
+        }
+      }
+    ]);
+
+    // Top earning hosts
+    const topEarningHosts = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $lookup: {
+          from: 'events',
+          localField: 'eventId',
+          foreignField: '_id',
+          as: 'event'
+        }
+      },
+      { $unwind: '$event' },
+      {
+        $group: {
+          _id: '$event.hostId',
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 10 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'host'
+        }
+      },
+      { $unwind: '$host' },
+      {
+        $project: {
+          hostId: '$_id',
+          hostName: '$host.fullName',
+          hostEmail: '$host.email',
+          revenue: 1,
+          bookings: 1
+        }
+      }
+    ]);
+
+    // Monthly revenue trend
+    const monthlyRevenue = await Booking.aggregate([
+      { $match: { status: { $in: ['confirmed', 'completed'] } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          revenue: { $sum: '$amount' },
+          bookings: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: -1 } },
+      { $limit: 12 }
+    ]);
+
+    // Refund summary
+    const refundSummary = await Booking.aggregate([
+      { $match: { status: 'refunded' } },
+      {
+        $group: {
+          _id: null,
+          totalRefunded: { $sum: '$amount' },
+          refundCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        summary: revenueSummary[0] || {
+          totalRevenue: 0,
+          totalBookings: 0,
+          averageBookingValue: 0,
+          minBookingValue: 0,
+          maxBookingValue: 0
+        },
+        byStatus: revenueByStatus,
+        byCategory: revenueByCategory,
+        topEarningEvents,
+        topEarningHosts,
+        monthlyTrend: monthlyRevenue.reverse(),
+        refunds: refundSummary[0] || { totalRefunded: 0, refundCount: 0 }
+      },
+      'Revenue summary retrieved successfully'
+    );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

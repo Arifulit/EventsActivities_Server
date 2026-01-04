@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { Event } from '../models/event.model';
 import { User } from '../models/user.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
@@ -32,11 +33,12 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<any> =
     const search = req.query.search as string || '';
     const type = req.query.type as string;
     const category = req.query.category as string;
-    const city = req.query.city as string;
+    const city = (req.query.city || req.query.location) as string;
     const minPrice = req.query.minPrice as string;
     const maxPrice = req.query.maxPrice as string;
-    const dateFrom = req.query.dateFrom as string;
-    const dateTo = req.query.dateTo as string;
+    const isFree = req.query.isFree as string;
+    const dateFrom = (req.query.dateFrom || req.query.startDate) as string;
+    const dateTo = (req.query.dateTo || req.query.endDate) as string;
     const status = req.query.status as string || 'open';
 
     const query: any = {};
@@ -59,7 +61,10 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<any> =
       query['location.city'] = { $regex: city, $options: 'i' };
     }
 
-    if (minPrice || maxPrice) {
+    // Handle isFree parameter
+    if (isFree === 'true') {
+      query.price = 0;
+    } else if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = parseFloat(minPrice);
       if (maxPrice) query.price.$lte = parseFloat(maxPrice);
@@ -97,6 +102,10 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<any> =
 export const getEventById = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid event id', 400);
+    }
 
     const event = await Event.findById(id)
       .populate('hostId', 'fullName profileImage bio averageRating totalReviews')
@@ -282,6 +291,7 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<any>
     const routePath = req.route.path; // Check which route was matched
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+    const statusFilter = (req.query.status as string) || '';
 
     let events;
     let query: any = {};
@@ -293,21 +303,33 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<any>
     } else if (type === 'saved') {
       query._id = { $in: req.user.savedEvents };
     } else if (!type) {
-      // Check which route was matched
-      if (routePath === '/hosted-events') {
-        query.hostId = req.user._id;
-      } else {
-        // For /my-events route, get all events (hosted, joined, and saved)
-        const allEventIds = [
-          ...req.user.hostedEvents,
-          ...req.user.joinedEvents,
-          ...req.user.savedEvents
-        ];
-        query._id = { $in: allEventIds };
-      }
+        // Check which route was matched
+        if (routePath === '/hosted-events' || routePath === '/my-hosted') {
+          query.hostId = req.user._id;
+        } else if (routePath === '/my-joined') {
+          query._id = { $in: req.user.joinedEvents };
+        } else if (routePath === '/my-saved') {
+          query._id = { $in: req.user.savedEvents };
+        } else {
+          // For /my-events route, get all events (hosted, joined, and saved)
+          const allEventIds = [
+            ...req.user.hostedEvents,
+            ...req.user.joinedEvents,
+            ...req.user.savedEvents
+          ];
+          query._id = { $in: allEventIds };
+        }
     } else {
       return errorResponse(res, 'Invalid event type. Use hosted, joined, or saved', 400);
     }
+
+      // Date-based status filter
+      const now = new Date();
+      if (statusFilter === 'upcoming') {
+        query.date = { ...(query.date || {}), $gte: now };
+      } else if (statusFilter === 'past') {
+        query.date = { ...(query.date || {}), $lt: now };
+      }
 
     const skip = (page - 1) * limit;
 
