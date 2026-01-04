@@ -18,6 +18,7 @@ const app: Application = express();
 const allowedOrigins = [
   config.frontendUrl,
   'https://events-activities-client-et8q.vercel.app',
+  'https://events-activities-client-kappa.vercel.app',
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174'

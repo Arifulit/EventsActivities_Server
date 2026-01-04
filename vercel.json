@@ -25,7 +25,7 @@
         },
         {
           "key": "Access-Control-Allow-Origin",
-          "value": "https://events-activities-client-et8q.vercel.app"
+          "value": "https://events-activities-client-kappa.vercel.app"
         },
         {
           "key": "Access-Control-Allow-Methods",

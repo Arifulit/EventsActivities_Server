@@ -21,6 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://events-activities-client-et8q.vercel.app',
+    'https://events-activities-client-kappa.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:5174'
