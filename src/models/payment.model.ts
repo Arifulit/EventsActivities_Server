@@ -99,8 +99,6 @@ paymentSchema.index({ bookingId: 1 });
 paymentSchema.index({ userId: 1 });
 paymentSchema.index({ hostId: 1 });
 paymentSchema.index({ status: 1 });
-paymentSchema.index({ paymentIntentId: 1 });
-paymentSchema.index({ transactionId: 1 });
 paymentSchema.index({ createdAt: -1 });
 
 export const Payment = mongoose.model<IPayment>('Payment', paymentSchema);
