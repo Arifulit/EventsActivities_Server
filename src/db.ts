@@ -33,8 +33,16 @@ export const connectDB = async (): Promise<void> => {
       process.exit(0);
     });
 
-  } catch (error) {
-    console.error('Database connection error:', error);
+  } catch (error: any) {
+    console.error('❌ Database connection failed:', error?.message || error);
+    console.error('Ensure MONGODB_URI is set in Vercel env vars and Atlas allows your IP');
+    
+    // Don't exit immediately on serverless - allow retries
+    if (process.env.VERCEL) {
+      console.warn('⚠️ Running on Vercel - connection will retry on next request');
+      return;
+    }
+    
     process.exit(1);
   }
 };
