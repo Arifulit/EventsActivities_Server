@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import { config } from './config/env';
 
+let connectionAttempts = 0;
+const maxRetries = 3;
+
 export const connectDB = async (): Promise<void> => {
   try {
     console.log('Attempting to connect to MongoDB...');
@@ -16,8 +19,13 @@ export const connectDB = async (): Promise<void> => {
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    connectionAttempts = 0; // Reset on success
     
     // Handle connection events
+    mongoose.connection.on('reconnect', () => {
+      console.log('🔄 MongoDB reconnected');
+    });
+
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
     });

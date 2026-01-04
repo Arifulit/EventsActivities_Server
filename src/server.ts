@@ -4,7 +4,10 @@ import { connectDB } from './db';
 
 const startServer = async () => {
   try {
-    await connectDB();
+    // Connect to DB - don't block startup on Vercel
+    connectDB().catch(err => {
+      console.error('⚠️ Initial DB connection failed, will retry:', err.message);
+    });
     
     app.listen(config.port, () => {
       console.log(`

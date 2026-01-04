@@ -7,7 +7,13 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   
   // Database
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/events-platform',
+  mongodbUri: (() => {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+      console.warn('⚠️ WARNING: MONGODB_URI not found in environment variables');
+    }
+    return uri || 'mongodb://localhost:27017/events-platform';
+  })(),
   
   // JWT
   jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
