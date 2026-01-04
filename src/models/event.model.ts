@@ -30,6 +30,7 @@ export interface IEvent extends Document {
   isPublic: boolean;
   participants: mongoose.Types.ObjectId[];
   waitingList: mongoose.Types.ObjectId[];
+  averageRating?: number;
   createdAt: Date;
   updatedAt: Date;
 }

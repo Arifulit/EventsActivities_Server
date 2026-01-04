@@ -539,7 +539,7 @@ export const validate = (validations: ValidationChain[]) => {
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
-        errors: errors.map(error => ({
+        errors: errors.map((error: any) => ({
           field: error.param,
           message: error.msg,
           value: error.value

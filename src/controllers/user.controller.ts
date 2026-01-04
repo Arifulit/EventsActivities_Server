@@ -445,7 +445,7 @@ export const getUserEvents = async (req: AuthRequest, res: Response): Promise<an
         joined: allEvents[0].joined,
         saved: allEvents[0].saved,
         summary: { hostedCount, joinedCount, savedCount }
-      }, page, limit, hostedCount + joinedCount + savedCount, 'User events retrieved successfully');
+      } as any, page, limit, hostedCount + joinedCount + savedCount, 'User events retrieved successfully');
     }
 
     return paginatedResponse(res, events, page, limit, total, 'User events retrieved successfully');

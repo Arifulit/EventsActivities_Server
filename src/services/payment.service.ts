@@ -185,6 +185,10 @@ export class PaymentService {
       throw new Error('No payment to refund');
     }
 
+    if (!booking.paymentIntentId) {
+      throw new Error('Payment intent ID not found');
+    }
+
     try {
       // Get payment intent
       const paymentIntent = await this.stripe.paymentIntents.retrieve(booking.paymentIntentId);
