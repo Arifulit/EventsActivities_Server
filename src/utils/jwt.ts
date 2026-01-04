@@ -7,10 +7,11 @@ export interface JwtPayload {
 }
 
 export const generateToken = (userId: string, role: string = 'user'): string => {
+  const expiresIn = config.jwtExpiresIn as unknown as SignOptions['expiresIn'];
   return jwt.sign(
     { id: userId, role }, 
     config.jwtSecret, 
-    { expiresIn: config.jwtExpiresIn }
+    { expiresIn }
   );
 };
 
