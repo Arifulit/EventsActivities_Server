@@ -3,13 +3,19 @@ import { config } from './config/env';
 
 export const connectDB = async (): Promise<void> => {
   try {
+    console.log('Attempting to connect to MongoDB...');
+    console.log('URI (masked):', config.mongodbUri?.replace(/(:)(.+?)(@)/, '$1***$3'));
+    
     const conn = await mongoose.connect(config.mongodbUri, {
-      // Remove deprecated options
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      retryWrites: true,
+      w: 'majority'
     });
 
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
     // Handle connection events
     mongoose.connection.on('error', (err) => {
