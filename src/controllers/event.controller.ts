@@ -103,12 +103,13 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<any> =
 export const getEventById = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    const eventId = Array.isArray(id) ? id[0] : id;
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!Types.ObjectId.isValid(eventId)) {
       return errorResponse(res, 'Invalid event id', 400);
     }
 
-    const event = await Event.findById(id)
+    const event = await Event.findById(eventId)
       .populate('hostId', 'fullName profileImage bio averageRating totalReviews')
       .populate('participants', 'fullName profileImage')
       .populate('waitingList', 'fullName profileImage');
@@ -418,9 +419,10 @@ export const getEventParticipants = async (req: AuthRequest, res: Response): Pro
 export const updateEventStatus = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    const eventId = Array.isArray(id) ? id[0] : id;
     const { status } = req.body;
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!Types.ObjectId.isValid(eventId)) {
       return errorResponse(res, 'Invalid event id', 400);
     }
 
@@ -430,7 +432,7 @@ export const updateEventStatus = async (req: AuthRequest, res: Response): Promis
       return errorResponse(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findById(eventId);
     if (!event) {
       return errorResponse(res, 'Event not found', 404);
     }
@@ -444,7 +446,7 @@ export const updateEventStatus = async (req: AuthRequest, res: Response): Promis
     event.status = status;
     await event.save();
 
-    const updatedEvent = await Event.findById(id)
+    const updatedEvent = await Event.findById(eventId)
       .populate('hostId', 'fullName profileImage');
 
     return successResponse(res, updatedEvent, 'Event status updated successfully');
@@ -456,12 +458,13 @@ export const updateEventStatus = async (req: AuthRequest, res: Response): Promis
 export const getEventRevenue = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    const eventId = Array.isArray(id) ? id[0] : id;
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!Types.ObjectId.isValid(eventId)) {
       return errorResponse(res, 'Invalid event id', 400);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findById(eventId);
     if (!event) {
       return errorResponse(res, 'Event not found', 404);
     }
@@ -480,7 +483,7 @@ export const getEventRevenue = async (req: AuthRequest, res: Response): Promise<
 
     // Get payment statistics
     const [revenueSummary] = await Payment.aggregate([
-      { $match: { eventId: new Types.ObjectId(id) } },
+      { $match: { eventId: new Types.ObjectId(eventId) } },
       {
         $group: {
           _id: null,
@@ -569,15 +572,16 @@ export const getEventRevenue = async (req: AuthRequest, res: Response): Promise<
 export const getEventBookings = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
+    const eventId = Array.isArray(id) ? id[0] : id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const status = req.query.status as string;
+    const status = Array.isArray(req.query.status) ? (req.query.status as string[])[0] : (req.query.status as string);
 
-    if (!Types.ObjectId.isValid(id)) {
+    if (!Types.ObjectId.isValid(eventId)) {
       return errorResponse(res, 'Invalid event id', 400);
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findById(eventId);
     if (!event) {
       return errorResponse(res, 'Event not found', 404);
     }
@@ -609,8 +613,9 @@ export const getEventBookings = async (req: AuthRequest, res: Response): Promise
     const total = await Booking.countDocuments(query);
 
     // Calculate booking statistics
+    const eventObjectId = typeof id === 'string' ? new Types.ObjectId(id) : new Types.ObjectId(id[0]);
     const [stats] = await Booking.aggregate([
-      { $match: { eventId: new Types.ObjectId(id) } },
+      { $match: { eventId: eventObjectId } },
       {
         $group: {
           _id: '$status',
@@ -622,7 +627,7 @@ export const getEventBookings = async (req: AuthRequest, res: Response): Promise
 
     // Get summary
     const [summary] = await Booking.aggregate([
-      { $match: { eventId: new Types.ObjectId(id) } },
+      { $match: { eventId: eventObjectId } },
       {
         $group: {
           _id: null,

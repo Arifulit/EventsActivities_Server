@@ -3,7 +3,7 @@ import { config } from './env';
 
 // Initialize Stripe
 const stripe = new Stripe(config.stripe.secretKey, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-12-15.clover',
 });
 
 // Create payment intent

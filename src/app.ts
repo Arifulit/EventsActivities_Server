@@ -15,54 +15,18 @@ import hostRoutes from './routes/host.routes';
 
 const app: Application = express();
 
-// ============================================
-// CORS MUST BE FIRST - Before all other middleware
-// ============================================
-
-// CORS configuration
-const allowedOrigins = [
-  config.frontendUrl,
-  'https://events-activities-client-kappa.vercel.app',
-  'https://events-activities-client-et8q.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5174'
-];
-
-const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    // Remove trailing slash for comparison
-    const cleanOrigin = origin.replace(/\/$/, '');
-    const isAllowed = allowedOrigins.some(o => o.replace(/\/$/, '') === cleanOrigin);
-    
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log('Blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Length', 'X-JSON', 'X-Total-Count'],
-  maxAge: 86400,
-  preflightContinue: false,
-  optionsSuccessStatus: 200
-};
-
-// Apply CORS to all routes
-app.use(cors(corsOptions));
-
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
-
+// Body parsing middleware - BEFORE routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Simple CORS for local development only (Vercel handles production CORS in api/index.ts)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: true,
+    credentials: true
+  }));
+}
 
 app.get('/', (req: Request, res: Response) => {
   res.json({

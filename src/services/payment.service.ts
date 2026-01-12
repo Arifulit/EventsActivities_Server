@@ -34,7 +34,7 @@ export interface PaymentMetadata {
 
 export class PaymentService {
   private static stripe = new Stripe(config.stripe.secretKey, {
-    apiVersion: '2023-10-16'
+    apiVersion: '2025-12-15.clover'
   });
 
   static async createPaymentIntent(data: CreatePaymentIntentData): Promise<PaymentIntentResponse> {

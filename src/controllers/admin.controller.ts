@@ -830,7 +830,7 @@ export const flagEvent = async (req: Request, res: Response): Promise<any> => {
           'metadata.flagged': true,
           'metadata.flagReason': reason || 'Content violation',
           'metadata.flaggedAt': new Date(),
-          'metadata.flaggedBy': req.user?.id
+          'metadata.flaggedBy': req.user?._id
         }
       },
       { new: true }

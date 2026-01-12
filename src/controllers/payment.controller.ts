@@ -8,7 +8,7 @@ import { config } from '../config/env';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(config.stripe.secretKey || '', {
-  apiVersion: '2023-10-16'
+  apiVersion: '2025-12-15.clover'
 });
 
 export const createPaymentIntent = async (req: AuthRequest, res: Response): Promise<any> => {

@@ -172,13 +172,12 @@ eventSchema.index({ price: 1 });
 eventSchema.index({ tags: 1 });
 eventSchema.index({ title: 'text', description: 'text', tags: 'text' });
 
-eventSchema.pre('save', function(next) {
+eventSchema.pre('save', function() {
   if (this.currentParticipants >= this.maxParticipants) {
     this.status = 'full';
   } else if (this.status === 'full' && this.currentParticipants < this.maxParticipants) {
     this.status = 'open';
   }
-  next();
 });
 
 export const Event = mongoose.model<IEvent>('Event', eventSchema);

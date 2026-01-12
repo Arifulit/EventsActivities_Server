@@ -57,7 +57,7 @@ export const isOwnerOrAdmin = (resourceOwnerIdField: string = 'userId') => {
       return next();
     }
 
-    if (req.user.id === resourceOwnerId) {
+    if (req.user._id?.toString() === resourceOwnerId) {
       return next();
     }
 
@@ -83,7 +83,7 @@ export const isEventHostOrAdmin = (eventHostIdField: string = 'hostId') => {
       return next();
     }
 
-    if (req.user.role === UserRole.HOST && req.user.id === eventHostId) {
+    if (req.user.role === UserRole.HOST && req.user._id?.toString() === eventHostId) {
       return next();
     }
 

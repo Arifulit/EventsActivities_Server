@@ -235,8 +235,9 @@ export const getHostRatingStats = async (req: AuthRequest, res: Response): Promi
     }
 
     // Get all reviews for this host
+    const hostObjectId = typeof hostId === 'string' ? new Types.ObjectId(hostId) : new Types.ObjectId(hostId[0]);
     const [ratingStats] = await Review.aggregate([
-      { $match: { hostId: new Types.ObjectId(hostId) } },
+      { $match: { hostId: hostObjectId } },
       {
         $group: {
           _id: null,
