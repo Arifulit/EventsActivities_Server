@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Types } from 'mongoose';
 import { Event } from '../models/event.model';
 import { User } from '../models/user.model';
+import { Payment } from '../models/payment.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -116,8 +117,8 @@ export const getEventById = async (req: AuthRequest, res: Response): Promise<any
       return errorResponse(res, 'Event not found', 404);
     }
 
-    // Check if event is public or user is the host
-    if (!event.isPublic && event.hostId._id.toString() !== req.user._id.toString()) {
+    // Check if event is public or user is authenticated and is the host
+    if (!event.isPublic && (!req.user || event.hostId._id.toString() !== req.user._id.toString())) {
       return errorResponse(res, 'Access denied', 403);
     }
 
@@ -188,11 +189,24 @@ export const joinEvent = async (req: AuthRequest, res: Response): Promise<any> =
       return errorResponse(res, 'Event not found', 404);
     }
 
-    // Check if event is open and not full
-    if (event.status !== 'open') {
-      return errorResponse(res, 'Event is not open for joining', 400);
+    // Check if event is cancelled
+    if (event.status === 'cancelled') {
+      return errorResponse(res, 'Cannot join a cancelled event', 400);
     }
 
+    // Check if event is in draft mode
+    if (event.status === 'draft') {
+      return errorResponse(res, 'This event is not published yet', 400);
+    }
+
+    // Check if event date has passed (for completed events)
+    const eventDateTime = new Date(event.date);
+    const now = new Date();
+    if (event.status === 'completed' && eventDateTime < now) {
+      return errorResponse(res, 'Cannot join a past event', 400);
+    }
+
+    // Check capacity
     if (event.currentParticipants >= event.maxParticipants) {
       return errorResponse(res, 'Event is full', 400);
     }
@@ -200,6 +214,11 @@ export const joinEvent = async (req: AuthRequest, res: Response): Promise<any> =
     // Check if user is already a participant
     if (event.participants.includes(req.user._id)) {
       return errorResponse(res, 'You are already a participant', 400);
+    }
+
+    // Check if user is the host
+    if (event.hostId.toString() === req.user._id.toString()) {
+      return errorResponse(res, 'You cannot join your own event', 400);
     }
 
     // Check if user is on waiting list
@@ -212,6 +231,12 @@ export const joinEvent = async (req: AuthRequest, res: Response): Promise<any> =
     event.participants.push(req.user._id);
     event.currentParticipants += 1;
 
+    // If event was marked as completed but date hasn't passed, reopen it
+    if (event.status === 'completed') {
+      event.status = 'open';
+    }
+
+    // Status will be auto-updated to 'full' by pre-save hook if needed
     await event.save();
 
     // Add event to user's joined events
@@ -385,6 +410,278 @@ export const getEventParticipants = async (req: AuthRequest, res: Response): Pro
     const total = await User.countDocuments(query);
 
     return paginatedResponse(res, participants, page, limit, total, 'Event participants retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const updateEventStatus = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid event id', 400);
+    }
+
+    // Validate status
+    const validStatuses = ['draft', 'open', 'full', 'cancelled', 'completed'];
+    if (!status || !validStatuses.includes(status)) {
+      return errorResponse(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+    }
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    // Check if user is the host or admin
+    if (event.hostId.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+      return errorResponse(res, 'Access denied. Only event host or admin can update event status', 403);
+    }
+
+    // Update status
+    event.status = status;
+    await event.save();
+
+    const updatedEvent = await Event.findById(id)
+      .populate('hostId', 'fullName profileImage');
+
+    return successResponse(res, updatedEvent, 'Event status updated successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getEventRevenue = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid event id', 400);
+    }
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    // Populate host details after finding event
+    await event.populate('hostId', 'fullName email');
+
+    if (!event.hostId) {
+      return errorResponse(res, 'Event host not found', 404);
+    }
+
+    // Check if user is the host or admin
+    if (event.hostId._id.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+      return errorResponse(res, 'Access denied. Only event host or admin can view event revenue', 403);
+    }
+
+    // Get payment statistics
+    const [revenueSummary] = await Payment.aggregate([
+      { $match: { eventId: new Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'succeeded'] }, '$amount', 0]
+            }
+          },
+          pendingRevenue: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['pending', 'processing']] }, '$amount', 0]
+            }
+          },
+          refundedRevenue: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, '$refundAmount', 0]
+            }
+          },
+          totalPayments: { $sum: 1 },
+          succeededPayments: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'succeeded'] }, 1, 0]
+            }
+          },
+          pendingPayments: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['pending', 'processing']] }, 1, 0]
+            }
+          },
+          failedPayments: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'failed'] }, 1, 0]
+            }
+          },
+          refundedPayments: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, 1, 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Get payment history
+    const payments = await Payment.find({ eventId: id })
+      .populate('userId', 'fullName email profileImage')
+      .populate('bookingId', 'status bookingDate')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    return successResponse(
+      res,
+      {
+        event: {
+          _id: event._id,
+          title: event.title,
+          date: event.date,
+          price: event.price,
+          maxParticipants: event.maxParticipants,
+          currentParticipants: event.currentParticipants,
+          status: event.status,
+          hostId: event.hostId
+        },
+        revenue: {
+          totalRevenue: revenueSummary?.totalRevenue || 0,
+          pendingRevenue: revenueSummary?.pendingRevenue || 0,
+          refundedRevenue: revenueSummary?.refundedRevenue || 0,
+          totalPayments: revenueSummary?.totalPayments || 0,
+          succeededPayments: revenueSummary?.succeededPayments || 0,
+          pendingPayments: revenueSummary?.pendingPayments || 0,
+          failedPayments: revenueSummary?.failedPayments || 0,
+          refundedPayments: revenueSummary?.refundedPayments || 0,
+          averagePerParticipant: revenueSummary?.succeededPayments
+            ? (revenueSummary.totalRevenue / revenueSummary.succeededPayments).toFixed(2)
+            : 0
+        },
+        payments
+      },
+      'Event revenue retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getEventBookings = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const status = req.query.status as string;
+
+    if (!Types.ObjectId.isValid(id)) {
+      return errorResponse(res, 'Invalid event id', 400);
+    }
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return errorResponse(res, 'Event not found', 404);
+    }
+
+    // Check if user is the host or admin
+    if (event.hostId.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+      return errorResponse(res, 'Access denied. Only event host or admin can view event bookings', 403);
+    }
+
+    // Import Booking model
+    const { Booking } = require('../models/booking.model');
+
+    // Build query
+    const query: any = { eventId: id };
+    if (status) {
+      query.status = status;
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Get bookings
+    const bookings = await Booking.find(query)
+      .populate('userId', 'fullName email profileImage phone')
+      .populate('eventId', 'title date price')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Booking.countDocuments(query);
+
+    // Calculate booking statistics
+    const [stats] = await Booking.aggregate([
+      { $match: { eventId: new Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    // Get summary
+    const [summary] = await Booking.aggregate([
+      { $match: { eventId: new Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: null,
+          totalBookings: { $sum: 1 },
+          totalRevenue: { $sum: '$amount' },
+          confirmedBookings: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'confirmed'] }, 1, 0]
+            }
+          },
+          pendingBookings: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'pending'] }, 1, 0]
+            }
+          },
+          cancelledBookings: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0]
+            }
+          },
+          completedBookings: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'completed'] }, 1, 0]
+            }
+          },
+          totalQuantity: { $sum: '$quantity' }
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        event: {
+          _id: event._id,
+          title: event.title,
+          date: event.date,
+          maxParticipants: event.maxParticipants,
+          currentParticipants: event.currentParticipants
+        },
+        summary: {
+          totalBookings: summary?.totalBookings || 0,
+          totalRevenue: summary?.totalRevenue || 0,
+          confirmedBookings: summary?.confirmedBookings || 0,
+          pendingBookings: summary?.pendingBookings || 0,
+          cancelledBookings: summary?.cancelledBookings || 0,
+          completedBookings: summary?.completedBookings || 0,
+          totalQuantity: summary?.totalQuantity || 0
+        },
+        bookings,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      },
+      'Event bookings retrieved successfully'
+    );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

@@ -10,6 +10,7 @@ export interface IPayment extends Document {
   status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'refunded';
   paymentMethod: 'stripe' | 'paypal' | 'sslcommerz' | 'cash';
   paymentIntentId?: string;
+  paymentMethodId?: string;
   transactionId?: string;
   gatewayResponse?: any;
   refundId?: string;
@@ -64,6 +65,10 @@ const paymentSchema = new Schema<IPayment>(
       required: true
     },
     paymentIntentId: {
+      type: String,
+      sparse: true
+    },
+    paymentMethodId: {
       type: String,
       sparse: true
     },

@@ -11,6 +11,7 @@ import bookingRoutes from './routes/booking.routes';
 import reviewRoutes from './routes/review.routes';
 import adminRoutes from './routes/admin.routes';
 import paymentRoutes from './routes/payment.routes';
+import hostRoutes from './routes/host.routes';
 
 const app: Application = express();
 
@@ -67,11 +68,21 @@ app.get('/health', (req: Request, res: Response) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/users', userRoutes); // Alias for clients calling /users/*
 app.use('/api/events', eventRoutes);
+app.use('/events', eventRoutes); // Alias for clients calling /events/*
 app.use('/api/bookings', bookingRoutes);
+app.use('/bookings', bookingRoutes); // Alias for clients calling /bookings/*
+app.use('/api/booking', bookingRoutes); // Alias for singular form /api/booking/*
+app.use('/booking', bookingRoutes); // Alias for singular form /booking/*
 app.use('/api/reviews', reviewRoutes);
+app.use('/reviews', reviewRoutes); // Alias for clients calling /reviews/*
 app.use('/api/admin', adminRoutes);
+app.use('/admin', adminRoutes); // Alias for clients calling /admin/*
 app.use('/api/payments', paymentRoutes);
+app.use('/payments', paymentRoutes); // Alias for clients calling /payments/*
+app.use('/api/hosts', hostRoutes);
+app.use('/hosts', hostRoutes); // Alias for clients calling /hosts/*
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({

@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { User } from '../models/user.model';
 import { Event } from '../models/event.model';
 import { Review } from '../models/review.model';
-import { successResponse, errorResponse } from '../utils/response';
+import { Payment } from '../models/payment.model';
+import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 
 export const getAllUsers = async (req: Request, res: Response): Promise<any> => {
   try {
@@ -173,10 +174,32 @@ export const updateUserRole = async (req: Request, res: Response): Promise<any> 
 export const updateUserStatus = async (req: Request, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
-    const { isActive, isVerified } = req.body;
+    const { status, isActive, isVerified, reason } = req.body;
 
     const updateData: any = {};
     
+    // Handle new status field (suspended, active, etc.)
+    if (status) {
+      const validStatuses = ['active', 'suspended', 'banned', 'inactive'];
+      if (!validStatuses.includes(status)) {
+        return errorResponse(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
+      }
+      
+      // Map status to isActive
+      if (status === 'active' || status === 'inactive') {
+        updateData.isActive = status === 'active';
+      } else if (status === 'suspended' || status === 'banned') {
+        updateData.isActive = false;
+      }
+      
+      // Store the actual status and reason
+      updateData.userStatus = status;
+      if (reason) {
+        updateData.suspensionReason = reason;
+      }
+    }
+    
+    // Handle legacy fields
     if (isActive !== undefined) {
       updateData.isActive = isActive;
     }
@@ -611,6 +634,58 @@ export const deleteReview = async (req: Request, res: Response): Promise<any> =>
       null,
       `Review deleted successfully${reason ? ': ' + reason : ''}`
     );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const moderateReview = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { reviewId } = req.params;
+    const { action, reason } = req.body;
+
+    if (!action) {
+      return errorResponse(res, 'Action is required', 400);
+    }
+
+    const review = await Review.findById(reviewId)
+      .populate('userId', 'fullName email')
+      .populate('hostId', 'fullName email')
+      .populate('eventId', 'title');
+
+    if (!review) {
+      return errorResponse(res, 'Review not found', 404);
+    }
+
+    let result;
+    let message;
+
+    switch (action) {
+      case 'approve':
+        // Approve the review (if you have an approval status field)
+        message = 'Review approved successfully';
+        result = review;
+        break;
+      
+      case 'reject':
+      case 'delete':
+        // Delete the review
+        await Review.findByIdAndDelete(reviewId);
+        message = `Review ${action === 'reject' ? 'rejected' : 'deleted'} successfully${reason ? ': ' + reason : ''}`;
+        result = null;
+        break;
+      
+      case 'flag':
+        // Flag the review as inappropriate
+        message = `Review flagged successfully${reason ? ': ' + reason : ''}`;
+        result = review;
+        break;
+      
+      default:
+        return errorResponse(res, 'Invalid action. Use: approve, reject, delete, or flag', 400);
+    }
+
+    return successResponse(res, result, message);
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }
@@ -1410,6 +1485,143 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<an
         refunds: refundSummary[0] || { totalRefunded: 0, refundCount: 0 }
       },
       'Revenue summary retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getHostEarnings = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const status = req.query.status as string;
+    const dateFrom = req.query.dateFrom as string;
+    const dateTo = req.query.dateTo as string;
+
+    // Verify host exists
+    const host = await User.findById(hostId);
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    // Build query
+    const query: any = { hostId };
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) query.createdAt.$lte = new Date(dateTo);
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Get payments
+    const payments = await Payment.find(query)
+      .populate('eventId', 'title date category')
+      .populate('bookingId', 'status paymentStatus bookingDate')
+      .populate('userId', 'fullName email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Payment.countDocuments(query);
+
+    // Calculate earnings summary
+    const [summary] = await Payment.aggregate([
+      { $match: { hostId: host._id } },
+      {
+        $group: {
+          _id: null,
+          totalEarned: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'succeeded'] }, '$amount', 0]
+            }
+          },
+          pendingAmount: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['pending', 'processing']] }, '$amount', 0]
+            }
+          },
+          refundedAmount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, '$refundAmount', 0]
+            }
+          },
+          totalPayments: { $sum: 1 },
+          succeededCount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'succeeded'] }, 1, 0]
+            }
+          },
+          pendingCount: {
+            $sum: {
+              $cond: [{ $in: ['$status', ['pending', 'processing']] }, 1, 0]
+            }
+          },
+          refundedCount: {
+            $sum: {
+              $cond: [{ $eq: ['$status', 'refunded'] }, 1, 0]
+            }
+          }
+        }
+      }
+    ]);
+
+    // Last 30 days earnings
+    const [last30Days] = await Payment.aggregate([
+      {
+        $match: {
+          hostId: host._id,
+          createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          status: 'succeeded'
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          amount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    return successResponse(
+      res,
+      {
+        host: {
+          _id: host._id,
+          fullName: host.fullName,
+          email: host.email,
+          profileImage: host.profileImage
+        },
+        summary: {
+          totalEarned: summary?.totalEarned || 0,
+          pendingAmount: summary?.pendingAmount || 0,
+          refundedAmount: summary?.refundedAmount || 0,
+          totalPayments: summary?.totalPayments || 0,
+          succeededCount: summary?.succeededCount || 0,
+          pendingCount: summary?.pendingCount || 0,
+          refundedCount: summary?.refundedCount || 0,
+          last30Days: {
+            amount: last30Days?.amount || 0,
+            count: last30Days?.count || 0
+          }
+        },
+        payments,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      },
+      'Host earnings retrieved successfully'
     );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);

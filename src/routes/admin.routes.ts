@@ -20,8 +20,10 @@ import {
   getRefundHistory,
   getRevenueSummary,
   getDashboardStats,
+  getHostEarnings,
   getAllReviews,
   deleteReview,
+  moderateReview,
   getHostsForModeration,
   approveHost,
   rejectHost,
@@ -62,6 +64,7 @@ router.delete('/users/:userId', deleteUser);
 
 // Host Management
 router.get('/hosts', getHostsForModeration);
+router.get('/hosts/:hostId/earnings', getHostEarnings);
 router.patch('/hosts/:hostId/approve', approveHost);
 router.patch('/hosts/:hostId/reject', rejectHost);
 
@@ -87,6 +90,7 @@ router.get('/revenue/summary', getRevenueSummary);
 // Content Moderation
 router.get('/reviews', getAllReviews);
 router.delete('/reviews/:reviewId', deleteReview);
+router.patch('/reviews/:reviewId/moderate', moderateReview);
 router.get('/flagged-content', getFlaggedContent);
 router.patch('/flagged-content/:eventId/resolve', resolveFlaggedContent);
 

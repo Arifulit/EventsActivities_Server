@@ -19,6 +19,8 @@ export interface IUser extends Document {
   };
   isVerified: boolean;
   isActive: boolean;
+  userStatus?: 'active' | 'suspended' | 'banned' | 'inactive';
+  suspensionReason?: string;
   averageRating: number;
   totalReviews: number;
   stripeAccountId?: string;
@@ -94,6 +96,15 @@ const userSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true
+    },
+    userStatus: {
+      type: String,
+      enum: ['active', 'suspended', 'banned', 'inactive'],
+      default: 'active'
+    },
+    suspensionReason: {
+      type: String,
+      default: ''
     },
     averageRating: {
       type: Number,

@@ -301,3 +301,57 @@ export const confirmBooking = async (req: AuthRequest, res: Response): Promise<a
     return errorResponse(res, error.message, 500);
   }
 };
+
+export const deleteBooking = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return errorResponse(res, 'Booking not found', 404);
+    }
+
+    // Check if user is the booking owner or admin
+    if (
+      booking.userId.toString() !== req.user._id.toString() &&
+      req.user.role !== UserRole.ADMIN
+    ) {
+      return errorResponse(res, 'Access denied. You can only delete your own bookings', 403);
+    }
+
+    // Cannot delete confirmed or completed bookings (only cancel them)
+    if (['confirmed', 'completed'].includes(booking.status)) {
+      return errorResponse(res, 'Cannot delete confirmed or completed bookings. Please cancel instead', 400);
+    }
+
+    // Remove user from event participants if confirmed
+    if (booking.status === 'confirmed') {
+      const event = await Event.findById(booking.eventId);
+      if (event) {
+        (event.participants as any).pull(booking.userId);
+        event.currentParticipants -= 1;
+        
+        // Update event status if it was full
+        if (event.status === 'full') {
+          event.status = 'open';
+        }
+        
+        await event.save();
+      }
+
+      // Remove event from user's joined events
+      const user = await User.findById(booking.userId);
+      if (user) {
+        (user.joinedEvents as any).pull(booking.eventId);
+        await user.save();
+      }
+    }
+
+    // Delete the booking
+    await Booking.findByIdAndDelete(id);
+
+    return successResponse(res, null, 'Booking deleted successfully', 200);
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};

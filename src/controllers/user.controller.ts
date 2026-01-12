@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { User } from '../models/user.model';
 import { Event } from '../models/event.model';
+import { Booking } from '../models/booking.model';
+import { Payment } from '../models/payment.model';
+import { Review } from '../models/review.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -460,7 +463,7 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<a
     const { currentPassword, newPassword } = req.body;
 
     // Verify authenticated user is changing their own password or is admin
-    if (req.user?.id !== userId && req.user?.role !== UserRole.ADMIN) {
+    if (req.user?._id?.toString() !== userId && req.user?.role !== UserRole.ADMIN) {
       return errorResponse(res, 'Unauthorized to change this password', 403);
     }
 
@@ -496,6 +499,113 @@ export const changePassword = async (req: AuthRequest, res: Response): Promise<a
     await user.save();
 
     return successResponse(res, null, 'Password changed successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getUserDashboard = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+
+    // Get user profile
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    // Event statistics
+    const hostedEventsCount = await Event.countDocuments({ hostId: userId });
+    const joinedEventsCount = await Event.countDocuments({ participants: userId });
+    const savedEventsCount = user.savedEvents.length;
+
+    // Upcoming events (both hosted and joined)
+    const upcomingEvents = await Event.find({
+      date: { $gte: now },
+      $or: [
+        { hostId: userId },
+        { participants: userId }
+      ]
+    })
+      .select('title date location price status hostId')
+      .sort({ date: 1 })
+      .limit(5)
+      .populate('hostId', 'fullName profileImage');
+
+    // Recent bookings
+    const recentBookings = await Booking.find({ userId })
+      .select('eventId amount status paymentStatus bookingDate')
+      .sort({ bookingDate: -1 })
+      .limit(5)
+      .populate('eventId', 'title date location price');
+
+    // Payment summary
+    const totalSpent = await Payment.aggregate([
+      { $match: { userId, status: 'succeeded' } },
+      { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+
+    // Reviews received (if host)
+    let reviewStats = null;
+    if (user.role === UserRole.HOST || user.role === UserRole.ADMIN) {
+      const reviews = await Review.find({ hostId: userId })
+        .select('rating createdAt')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate('userId', 'fullName profileImage');
+
+      reviewStats = {
+        averageRating: user.averageRating,
+        totalReviews: user.totalReviews,
+        recentReviews: reviews
+      };
+    }
+
+    // Host earnings (if host)
+    let earningsStats = null;
+    if (user.role === UserRole.HOST || user.role === UserRole.ADMIN) {
+      const earnings = await Payment.aggregate([
+        { $match: { hostId: userId, status: 'succeeded' } },
+        { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]);
+
+      const pendingPayments = await Payment.countDocuments({
+        hostId: userId,
+        status: { $in: ['pending', 'processing'] }
+      });
+
+      earningsStats = {
+        totalEarned: earnings[0]?.total || 0,
+        totalTransactions: earnings[0]?.count || 0,
+        pendingPayments
+      };
+    }
+
+    const dashboardData = {
+      profile: {
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        profileImage: user.profileImage,
+        bio: user.bio,
+        location: user.location,
+        isVerified: user.isVerified,
+        memberSince: user.createdAt
+      },
+      statistics: {
+        hostedEvents: hostedEventsCount,
+        joinedEvents: joinedEventsCount,
+        savedEvents: savedEventsCount,
+        totalSpent: totalSpent[0]?.total || 0
+      },
+      upcomingEvents,
+      recentBookings,
+      reviewStats,
+      earningsStats
+    };
+
+    return successResponse(res, dashboardData, 'Dashboard data retrieved successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

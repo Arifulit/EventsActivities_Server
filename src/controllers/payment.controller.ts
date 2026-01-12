@@ -32,8 +32,18 @@ export const createPaymentIntent = async (req: AuthRequest, res: Response): Prom
       return errorResponse(res, 'Invalid amount for payment', 400);
     }
 
-    // Create or find booking first
+    // Check if user already has a booking for this event
     const { Booking } = require('../models/booking.model');
+    const existingBooking = await Booking.findOne({
+      userId: req.user._id,
+      eventId: eventId
+    });
+
+    if (existingBooking) {
+      return errorResponse(res, 'You have already booked this event', 400);
+    }
+
+    // Create or find booking first
     const booking = await Booking.create({
       userId: req.user._id,
       eventId,
@@ -58,6 +68,9 @@ export const createPaymentIntent = async (req: AuthRequest, res: Response): Prom
     });
 
     // Save payment record to database
+    console.log('Creating payment with userId:', req.user._id);
+    console.log('User object type:', typeof req.user._id);
+    
     const payment = await Payment.create({
       userId: req.user._id,
       hostId: event.hostId,
@@ -84,45 +97,87 @@ export const createPaymentIntent = async (req: AuthRequest, res: Response): Prom
       201
     );
   } catch (error: any) {
-    return errorResponse(res, error.message, 500);
+    console.error('Payment intent creation error:', error);
+    
+    // Handle duplicate key error specifically
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.userId && error.keyPattern.eventId) {
+      return errorResponse(res, 'You have already booked this event', 400);
+    }
+    
+    // Handle Stripe errors
+    if (error.type && error.type.startsWith('Stripe')) {
+      return errorResponse(res, `Payment error: ${error.message}`, 400);
+    }
+    
+    return errorResponse(res, error.message || 'Failed to create payment intent', 500);
   }
 };
 
 export const confirmPayment = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const { paymentIntentId, bookingId } = req.body;
+    const { paymentIntentId, bookingId, paymentMethodId, returnUrl } = req.body;
 
     if (!paymentIntentId) {
       return errorResponse(res, 'Payment Intent ID is required', 400);
     }
 
     // Retrieve payment intent from Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    let paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (!paymentIntent) {
       return errorResponse(res, 'Payment intent not found', 404);
     }
 
-    // Find payment in database
-    const payment = await Payment.findOne({ paymentIntentId });
+    // Find payment in database (by intent or booking for safety)
+    const payment = await Payment.findOne(
+      bookingId ? { $or: [{ paymentIntentId }, { bookingId }] } : { paymentIntentId }
+    );
+
     if (!payment) {
       return errorResponse(res, 'Payment record not found', 404);
     }
 
-    // Verify the payment belongs to the user
+    // Verify payment belongs to user
+    console.log('Payment userId:', payment.userId);
+    console.log('Authenticated userId:', req.user._id);
+    console.log('Comparison result:', payment.userId.toString() !== req.user._id.toString());
+    
     if (payment.userId.toString() !== req.user._id.toString()) {
       return errorResponse(res, 'Unauthorized access to payment', 403);
     }
+
+    // If Stripe still needs confirmation/payment method, try to confirm server-side when a paymentMethodId is provided
+    if (
+      (paymentIntent.status === 'requires_payment_method' || paymentIntent.status === 'requires_confirmation') &&
+      paymentMethodId
+    ) {
+      const confirmParams: Stripe.PaymentIntentConfirmParams = {
+        payment_method: paymentMethodId
+      };
+
+      if (returnUrl) {
+        confirmParams.return_url = returnUrl;
+      }
+
+      paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, confirmParams);
+    }
+
+    const extractedPaymentMethodId = typeof paymentIntent.payment_method === 'string'
+      ? paymentIntent.payment_method
+      : paymentIntent.payment_method?.id;
 
     // Update payment status based on Stripe status
     if (paymentIntent.status === 'succeeded') {
       payment.status = 'succeeded';
       payment.processedAt = new Date();
+      if (extractedPaymentMethodId) {
+        payment.paymentMethodId = extractedPaymentMethodId;
+      }
       await payment.save();
 
       // Update booking status
       const { Booking } = require('../models/booking.model');
-      const booking = await Booking.findById(payment.bookingId);
+      const booking = await Booking.findById(payment.bookingId || bookingId);
       if (booking) {
         booking.status = 'confirmed';
         booking.paymentStatus = 'paid';
@@ -142,40 +197,47 @@ export const confirmPayment = async (req: AuthRequest, res: Response): Promise<a
         {
           payment,
           booking,
+          paymentMethodId: extractedPaymentMethodId,
           status: 'succeeded',
           message: 'Payment completed successfully'
         },
         'Payment confirmed successfully'
       );
+    } else if (paymentIntent.status === 'requires_action') {
+      // Frontend must handle 3DS or similar with the client_secret
+      return successResponse(
+        res,
+        {
+          status: 'requires_action',
+          clientSecret: paymentIntent.client_secret,
+          paymentMethodId: extractedPaymentMethodId,
+          message: 'Additional authentication required. Please complete 3D Secure.'
+        },
+        'Payment requires additional action'
+      );
     } else if (paymentIntent.status === 'processing') {
       payment.status = 'processing';
+      if (extractedPaymentMethodId) {
+        payment.paymentMethodId = extractedPaymentMethodId;
+      }
       await payment.save();
 
       return successResponse(
         res,
-        { 
-          payment, 
+        {
+          payment,
+          paymentMethodId: extractedPaymentMethodId,
           status: 'processing',
           message: 'Payment is being processed, please check back later'
         },
         'Payment is being processed'
       );
-    } else if (paymentIntent.status === 'requires_payment_method') {
-      return errorResponse(
-        res, 
-        'Payment incomplete. Please complete the payment using the client secret on the frontend with Stripe Elements. Status: requires_payment_method',
-        400
-      );
-    } else if (paymentIntent.status === 'requires_confirmation') {
+    } else if (paymentIntent.status === 'requires_payment_method' || paymentIntent.status === 'requires_confirmation') {
       return errorResponse(
         res,
-        'Payment requires confirmation. Please confirm the payment on the frontend.',
-        400
-      );
-    } else if (paymentIntent.status === 'requires_action') {
-      return errorResponse(
-        res,
-        'Payment requires additional action (e.g., 3D Secure authentication). Please complete the action on the frontend.',
+        paymentMethodId
+          ? 'Payment confirmation failed. Please try again with a valid payment method.'
+          : 'Payment incomplete. Provide a paymentMethodId or complete payment on the frontend with the client secret.',
         400
       );
     } else {
@@ -190,7 +252,7 @@ export const confirmPayment = async (req: AuthRequest, res: Response): Promise<a
       });
 
       return errorResponse(
-        res, 
+        res,
         `Payment failed with status: ${paymentIntent.status}`,
         400
       );
