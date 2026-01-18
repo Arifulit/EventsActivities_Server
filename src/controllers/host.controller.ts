@@ -326,3 +326,151 @@ export const getHostRatingStats = async (req: AuthRequest, res: Response): Promi
     return errorResponse(res, error.message, 500);
   }
 };
+
+export const getHostDetails = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+
+    // Verify host exists
+    const host = await User.findById(hostId).select('-password -resetPasswordToken -resetPasswordExpire');
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    // Get all events hosted by this user
+    const events = await Event.find({ hostId })
+      .select('title date location price status category images capacity attendees')
+      .sort({ createdAt: -1 });
+
+    // Import Booking and Payment models
+    const { Booking } = require('../models/booking.model');
+    const { Payment } = require('../models/payment.model');
+
+    const eventIds = events.map(event => event._id);
+
+    // Get booking statistics
+    const [bookingStats] = await Booking.aggregate([
+      { $match: { eventId: { $in: eventIds } } },
+      {
+        $group: {
+          _id: null,
+          totalBookings: { $sum: 1 },
+          confirmedBookings: {
+            $sum: { $cond: [{ $eq: ['$status', 'confirmed'] }, 1, 0] }
+          },
+          completedBookings: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    // Get rating statistics
+    const hostObjectId = typeof hostId === 'string' ? new Types.ObjectId(hostId) : hostId;
+    const [ratingStats] = await Review.aggregate([
+      { $match: { hostId: hostObjectId } },
+      {
+        $group: {
+          _id: null,
+          totalReviews: { $sum: 1 },
+          averageRating: { $avg: '$rating' },
+          rating5: {
+            $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] }
+          },
+          rating4: {
+            $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] }
+          },
+          rating3: {
+            $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] }
+          },
+          rating2: {
+            $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] }
+          },
+          rating1: {
+            $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    // Get recent reviews (limited to 5)
+    const recentReviews = await Review.find({ hostId })
+      .populate('userId', 'fullName profileImage')
+      .populate('eventId', 'title date')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    // Calculate rating distribution percentages
+    const totalReviews = ratingStats?.totalReviews || 0;
+    const ratingDistribution = {
+      5: {
+        count: ratingStats?.rating5 || 0,
+        percentage: totalReviews > 0 ? ((ratingStats?.rating5 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+      },
+      4: {
+        count: ratingStats?.rating4 || 0,
+        percentage: totalReviews > 0 ? ((ratingStats?.rating4 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+      },
+      3: {
+        count: ratingStats?.rating3 || 0,
+        percentage: totalReviews > 0 ? ((ratingStats?.rating3 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+      },
+      2: {
+        count: ratingStats?.rating2 || 0,
+        percentage: totalReviews > 0 ? ((ratingStats?.rating2 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+      },
+      1: {
+        count: ratingStats?.rating1 || 0,
+        percentage: totalReviews > 0 ? ((ratingStats?.rating1 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+      }
+    };
+
+    // Event statistics by status
+    const eventStats = {
+      total: events.length,
+      open: events.filter(e => e.status === 'open').length,
+      completed: events.filter(e => e.status === 'completed').length,
+      cancelled: events.filter(e => e.status === 'cancelled').length,
+      upcoming: events.filter(e => new Date(e.date) > new Date()).length,
+      past: events.filter(e => new Date(e.date) <= new Date()).length
+    };
+
+    return successResponse(
+      res,
+      {
+        host: {
+          _id: host._id,
+          fullName: host.fullName,
+          email: host.email,
+          profileImage: host.profileImage,
+          bio: host.bio,
+          interests: host.interests,
+          location: host.location,
+          isVerified: host.isVerified,
+          averageRating: host.averageRating,
+          totalReviews: host.totalReviews,
+          userStatus: host.userStatus,
+          createdAt: host.createdAt
+        },
+        events: {
+          items: events,
+          stats: eventStats
+        },
+        bookings: {
+          total: bookingStats?.totalBookings || 0,
+          confirmed: bookingStats?.confirmedBookings || 0,
+          completed: bookingStats?.completedBookings || 0
+        },
+        ratings: {
+          totalReviews,
+          averageRating: ratingStats?.averageRating ? parseFloat(ratingStats.averageRating.toFixed(2)) : 0,
+          distribution: ratingDistribution,
+          recentReviews
+        }
+      },
+      'Host details retrieved successfully'
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};

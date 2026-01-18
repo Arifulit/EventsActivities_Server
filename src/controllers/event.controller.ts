@@ -9,11 +9,34 @@ import { UserRole } from '../middleware/role.middleware';
 
 export const createEvent = async (req: AuthRequest, res: Response): Promise<any> => {
   try {
-    const eventData = {
+    // Handle image uploads from form-data (multer.any() format)
+    const files = req.files as Express.Multer.File[];
+    const eventData: any = {
       ...req.body,
       hostId: req.user._id,
       currentParticipants: 0
     };
+
+    // Process uploaded files if any
+    if (files && files.length > 0) {
+      const { uploadImage } = require('../services/cloudinary.service');
+      
+      // Find main image file (fieldname: 'image')
+      const mainImageFile = files.find(f => f.fieldname === 'image');
+      if (mainImageFile) {
+        const imageUrl = await uploadImage(mainImageFile.buffer, 'events');
+        eventData.image = imageUrl;
+      }
+
+      // Find all gallery images (fieldname: 'images')
+      const galleryFiles = files.filter(f => f.fieldname === 'images');
+      if (galleryFiles.length > 0) {
+        const imageUrls = await Promise.all(
+          galleryFiles.map((file) => uploadImage(file.buffer, 'events'))
+        );
+        eventData.images = imageUrls;
+      }
+    }
 
     const event = await Event.create(eventData);
     
@@ -138,14 +161,53 @@ export const updateEvent = async (req: AuthRequest, res: Response): Promise<any>
       return errorResponse(res, 'Event not found', 404);
     }
 
-    // Check if user is the host or admin
-    if (event.hostId.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+    // Get hostId as string (handle both ObjectId and populated object)
+    const eventHostId = typeof event.hostId === 'object' && event.hostId._id 
+      ? event.hostId._id.toString() 
+      : event.hostId.toString();
+
+    // Normalize role for comparison (handle case sensitivity)
+    const userRole = req.user.role?.toString().toLowerCase();
+    const currentUserId = req.user._id.toString();
+
+    // Check authorization: Admin can update any event, Host can update only their own events
+    const isAdmin = userRole === 'admin';
+    const isEventOwner = eventHostId === currentUserId;
+    const isHost = userRole === 'host';
+
+    // Allow update if: user is admin OR (user is host AND owns this event)
+    if (!isAdmin && !(isHost && isEventOwner)) {
       return errorResponse(res, 'Access denied. Only event host can update event', 403);
+    }
+
+    // Handle image uploads from form-data (multer.any() format)
+    const files = req.files as Express.Multer.File[];
+    const updateData: any = { ...req.body };
+
+    // Process uploaded files if any
+    if (files && files.length > 0) {
+      const { uploadImage } = require('../services/cloudinary.service');
+      
+      // Find main image file (fieldname: 'image')
+      const mainImageFile = files.find(f => f.fieldname === 'image');
+      if (mainImageFile) {
+        const imageUrl = await uploadImage(mainImageFile.buffer, 'events');
+        updateData.image = imageUrl;
+      }
+
+      // Find all gallery images (fieldname: 'images')
+      const galleryFiles = files.filter(f => f.fieldname === 'images');
+      if (galleryFiles.length > 0) {
+        const imageUrls = await Promise.all(
+          galleryFiles.map((file) => uploadImage(file.buffer, 'events'))
+        );
+        updateData.images = imageUrls;
+      }
     }
 
     const updatedEvent = await Event.findByIdAndUpdate(
       id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     ).populate('hostId', 'fullName profileImage');
 
@@ -164,8 +226,22 @@ export const deleteEvent = async (req: AuthRequest, res: Response): Promise<any>
       return errorResponse(res, 'Event not found', 404);
     }
 
-    // Check if user is the host or admin
-    if (event.hostId.toString() !== req.user._id.toString() && req.user.role !== UserRole.ADMIN) {
+    // Get hostId as string (handle both ObjectId and populated object)
+    const eventHostId = typeof event.hostId === 'object' && event.hostId._id 
+      ? event.hostId._id.toString() 
+      : event.hostId.toString();
+
+    // Normalize role for comparison (handle case sensitivity)
+    const userRole = req.user.role?.toString().toLowerCase();
+    const currentUserId = req.user._id.toString();
+
+    // Check authorization: Admin can delete any event, Host can delete only their own events
+    const isAdmin = userRole === 'admin';
+    const isEventOwner = eventHostId === currentUserId;
+    const isHost = userRole === 'host';
+
+    // Allow delete if: user is admin OR (user is host AND owns this event)
+    if (!isAdmin && !(isHost && isEventOwner)) {
       return errorResponse(res, 'Access denied. Only event host can delete event', 403);
     }
 
@@ -254,6 +330,10 @@ export const leaveEvent = async (req: AuthRequest, res: Response): Promise<any> 
   try {
     const { id } = req.params;
 
+    if (!req.user || !req.user._id) {
+      return errorResponse(res, 'User not authenticated', 401);
+    }
+
     const event = await Event.findById(id);
     if (!event) {
       return errorResponse(res, 'Event not found', 404);
@@ -265,8 +345,8 @@ export const leaveEvent = async (req: AuthRequest, res: Response): Promise<any> 
     }
 
     // Remove user from participants
-    event.participants = event.participants.filter(id => !id.equals(req.user._id));
-    event.currentParticipants -= 1;
+    event.participants = event.participants.filter(participantId => !participantId.equals(req.user._id));
+    event.currentParticipants = Math.max(0, event.currentParticipants - 1);
 
     // Update status if event was full
     if (event.status === 'full') {
@@ -275,13 +355,16 @@ export const leaveEvent = async (req: AuthRequest, res: Response): Promise<any> 
 
     await event.save();
 
-    // Remove event from user's joined events
-    await req.user.joinedEvents.pull(id);
-    await req.user.save();
+    // Remove event from user's joined events if the property exists
+    if (req.user.joinedEvents) {
+      await req.user.joinedEvents.pull(id);
+      await req.user.save();
+    }
 
     return successResponse(res, event, 'Successfully left the event');
   } catch (error: any) {
-    return errorResponse(res, error.message, 500);
+    console.error('Leave event error:', error);
+    return errorResponse(res, error.message || 'Failed to leave event', 500);
   }
 };
 
@@ -368,6 +451,37 @@ export const getMyEvents = async (req: AuthRequest, res: Response): Promise<any>
     const total = await Event.countDocuments(query);
 
     return paginatedResponse(res, events, page, limit, total, 'My events retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};
+
+export const getAllParticipants = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string || '';
+
+    const query: any = {};
+    
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const participants = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await User.countDocuments(query);
+
+    return paginatedResponse(res, participants, page, limit, total, 'All participants retrieved successfully');
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
   }

@@ -64,16 +64,6 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<an
       return errorResponse(res, 'Event is full', 400);
     }
 
-    // Check if user already has a booking for this event
-    const existingBooking = await Booking.findOne({
-      userId: req.user._id,
-      eventId: eventId
-    });
-
-    if (existingBooking) {
-      return errorResponse(res, 'You already have a booking for this event', 400);
-    }
-
     // Create booking
     const booking = await Booking.create({
       userId: req.user._id,
@@ -98,7 +88,19 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<an
 
     return successResponse(res, booking, 'Booking created successfully', 201);
   } catch (error: any) {
-    return errorResponse(res, error.message, 500);
+    console.error('Create booking error:', error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => ({
+        field: err.path,
+        message: err.message
+      }));
+      return errorResponse(res, 'Validation failed', 400, { errors: validationErrors });
+    }
+    
+    // Handle other errors
+    return errorResponse(res, error.message || 'Failed to create booking', 500, error);
   }
 };
 

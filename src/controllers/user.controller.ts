@@ -610,3 +610,235 @@ export const getUserDashboard = async (req: AuthRequest, res: Response): Promise
     return errorResponse(res, error.message, 500);
   }
 };
+
+export const getUserDetails = async (req: AuthRequest, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+    const requestingUserId = req.user?._id?.toString();
+    const requestingUserRole = req.user?.role;
+
+    // Get user
+    const user = await User.findById(userId).select('-password -resetPasswordToken -resetPasswordExpire');
+    if (!user) {
+      return errorResponse(res, 'User not found', 404);
+    }
+
+    // Check access permissions
+    const isOwnProfile = userId === requestingUserId;
+    const isAdmin = requestingUserRole === UserRole.ADMIN;
+
+    // Basic user info (available to all authenticated users)
+    const userDetails: any = {
+      _id: user._id,
+      fullName: user.fullName,
+      profileImage: user.profileImage,
+      bio: user.bio,
+      interests: user.interests,
+      location: user.location,
+      isVerified: user.isVerified,
+      averageRating: user.averageRating,
+      totalReviews: user.totalReviews,
+      role: user.role,
+      createdAt: user.createdAt
+    };
+
+    // Add sensitive info only for own profile or admin
+    if (isOwnProfile || isAdmin) {
+      userDetails.email = user.email;
+      userDetails.isActive = user.isActive;
+      userDetails.userStatus = user.userStatus;
+      userDetails.suspensionReason = user.suspensionReason;
+      userDetails.stripeAccountId = user.stripeAccountId;
+      userDetails.updatedAt = user.updatedAt;
+    }
+
+    // Get events statistics
+    const hostedEventsCount = await Event.countDocuments({ hostId: userId });
+    const joinedEventsCount = await Event.countDocuments({ participants: userId });
+    
+    // Get hosted events
+    const hostedEvents = await Event.find({ hostId: userId })
+      .select('title date location price status category images capacity attendees')
+      .sort({ date: -1 })
+      .limit(10);
+
+    // Get joined events (only for own profile or admin)
+    let joinedEvents: any[] = [];
+    if (isOwnProfile || isAdmin) {
+      joinedEvents = await Event.find({ participants: userId })
+        .select('title date location price status category images')
+        .sort({ date: -1 })
+        .limit(10)
+        .populate('hostId', 'fullName profileImage');
+    }
+
+    // Get bookings statistics (only for own profile or admin)
+    let bookingStats = null;
+    if (isOwnProfile || isAdmin) {
+      const [stats] = await Booking.aggregate([
+        { $match: { userId: user._id } },
+        {
+          $group: {
+            _id: null,
+            totalBookings: { $sum: 1 },
+            confirmedBookings: {
+              $sum: { $cond: [{ $eq: ['$status', 'confirmed'] }, 1, 0] }
+            },
+            pendingBookings: {
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+            },
+            cancelledBookings: {
+              $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0] }
+            },
+            completedBookings: {
+              $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+            },
+            totalSpent: { $sum: '$amount' }
+          }
+        }
+      ]);
+
+      bookingStats = {
+        total: stats?.totalBookings || 0,
+        confirmed: stats?.confirmedBookings || 0,
+        pending: stats?.pendingBookings || 0,
+        cancelled: stats?.cancelledBookings || 0,
+        completed: stats?.completedBookings || 0,
+        totalSpent: stats?.totalSpent || 0
+      };
+    }
+
+    // Get reviews given by user (only for own profile or admin)
+    let reviewsGiven: any[] = [];
+    if (isOwnProfile || isAdmin) {
+      reviewsGiven = await Review.find({ userId })
+        .select('rating comment createdAt eventId hostId')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate('eventId', 'title date')
+        .populate('hostId', 'fullName profileImage');
+    }
+
+    // Get reviews received (if user is a host)
+    let reviewsReceived: any[] = [];
+    let ratingDistribution = null;
+    if (user.role === UserRole.HOST || user.role === UserRole.ADMIN) {
+      reviewsReceived = await Review.find({ hostId: userId })
+        .select('rating comment createdAt userId eventId')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .populate('userId', 'fullName profileImage')
+        .populate('eventId', 'title date');
+
+      // Get rating distribution
+      const [ratingStats] = await Review.aggregate([
+        { $match: { hostId: user._id } },
+        {
+          $group: {
+            _id: null,
+            totalReviews: { $sum: 1 },
+            averageRating: { $avg: '$rating' },
+            rating5: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+            rating4: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+            rating3: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+            rating2: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+            rating1: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } }
+          }
+        }
+      ]);
+
+      const totalReviews = ratingStats?.totalReviews || 0;
+      ratingDistribution = {
+        5: {
+          count: ratingStats?.rating5 || 0,
+          percentage: totalReviews > 0 ? ((ratingStats?.rating5 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+        },
+        4: {
+          count: ratingStats?.rating4 || 0,
+          percentage: totalReviews > 0 ? ((ratingStats?.rating4 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+        },
+        3: {
+          count: ratingStats?.rating3 || 0,
+          percentage: totalReviews > 0 ? ((ratingStats?.rating3 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+        },
+        2: {
+          count: ratingStats?.rating2 || 0,
+          percentage: totalReviews > 0 ? ((ratingStats?.rating2 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+        },
+        1: {
+          count: ratingStats?.rating1 || 0,
+          percentage: totalReviews > 0 ? ((ratingStats?.rating1 || 0) / totalReviews * 100).toFixed(1) : '0.0'
+        }
+      };
+    }
+
+    // Get earnings statistics (only for own profile or admin, and if user is host)
+    let earningsStats = null;
+    if ((isOwnProfile || isAdmin) && (user.role === UserRole.HOST || user.role === UserRole.ADMIN)) {
+      const [earnings] = await Payment.aggregate([
+        { $match: { hostId: user._id, status: 'succeeded' } },
+        {
+          $group: {
+            _id: null,
+            totalEarned: { $sum: '$amount' },
+            totalTransactions: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const [pendingEarnings] = await Payment.aggregate([
+        { $match: { hostId: user._id, status: { $in: ['pending', 'processing'] } } },
+        {
+          $group: {
+            _id: null,
+            pendingAmount: { $sum: '$amount' },
+            pendingCount: { $sum: 1 }
+          }
+        }
+      ]);
+
+      earningsStats = {
+        totalEarned: earnings?.totalEarned || 0,
+        totalTransactions: earnings?.totalTransactions || 0,
+        pendingAmount: pendingEarnings?.pendingAmount || 0,
+        pendingTransactions: pendingEarnings?.pendingCount || 0
+      };
+    }
+
+    // Build response
+    const response: any = {
+      user: userDetails,
+      events: {
+        hosted: {
+          count: hostedEventsCount,
+          items: hostedEvents
+        },
+        joined: {
+          count: joinedEventsCount,
+          items: joinedEvents
+        }
+      },
+      ratings: {
+        averageRating: user.averageRating,
+        totalReviews: user.totalReviews,
+        distribution: ratingDistribution,
+        reviewsReceived: reviewsReceived,
+        reviewsGiven: reviewsGiven
+      }
+    };
+
+    // Add booking stats if available
+    if (bookingStats) {
+      response.bookings = bookingStats;
+    }
+
+    // Add earnings stats if available
+    if (earningsStats) {
+      response.earnings = earningsStats;
+    }
+
+    return successResponse(res, response, 'User details retrieved successfully');
+  } catch (error: any) {
+    return errorResponse(res, error.message, 500);
+  }
+};

@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import { Request, Response, NextFunction } from 'express';
 
 const storage = multer.memoryStorage();
 
@@ -22,3 +23,16 @@ export const upload = multer({
     fileSize: 5 * 1024 * 1024 // 5MB
   }
 });
+
+// Conditional upload middleware - only apply multer for multipart/form-data
+export const optionalUpload = (req: Request, res: Response, next: NextFunction) => {
+  const contentType = req.headers['content-type'] || '';
+  
+  // Only use multer if content-type is multipart/form-data
+  if (contentType.includes('multipart/form-data')) {
+    return upload.any()(req, res, next);
+  }
+  
+  // For JSON or other content types, skip multer
+  next();
+};

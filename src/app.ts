@@ -12,6 +12,7 @@ import reviewRoutes from './routes/review.routes';
 import adminRoutes from './routes/admin.routes';
 import paymentRoutes from './routes/payment.routes';
 import hostRoutes from './routes/host.routes';
+import uploadRoutes from './routes/upload.routes';
 
 const app: Application = express();
 
@@ -61,6 +62,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/payments', paymentRoutes); // Alias for clients calling /payments/*
 app.use('/api/hosts', hostRoutes);
 app.use('/hosts', hostRoutes); // Alias for clients calling /hosts/*
+app.use('/api/upload', uploadRoutes);
+app.use('/upload', uploadRoutes); // Alias for clients calling /upload/*
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({

@@ -12,7 +12,7 @@ export interface IBooking extends Document {
   refundId?: string;
   refundAmount?: number;
   refundReason?: string;
-  quantity: number;
+  quantity?: number;
   currency?: string;
   bookingDate: Date;
   specialRequests?: string;
@@ -63,7 +63,7 @@ const bookingSchema = new Schema<IBooking>(
     },
     quantity: {
       type: Number,
-      required: true,
+      default: 1,
       min: 1
     },
     currency: {
@@ -106,6 +106,7 @@ bookingSchema.index({ hostId: 1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ paymentStatus: 1 });
 bookingSchema.index({ bookingDate: -1 });
-bookingSchema.index({ userId: 1, eventId: 1 }, { unique: true });
+// Allow users to place multiple bookings for the same event (no unique compound index)
+bookingSchema.index({ userId: 1, eventId: 1 });
 
 export const Booking = mongoose.model<IBooking>('Booking', bookingSchema);

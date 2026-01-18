@@ -230,7 +230,7 @@ export class PaymentService {
 
       // Update event booking count
       await Event.findByIdAndUpdate(booking.eventId, {
-        $inc: { currentParticipants: -booking.quantity }
+        $inc: { currentParticipants: -(booking.quantity || 1) }
       });
 
     } catch (error) {

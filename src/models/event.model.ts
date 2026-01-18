@@ -120,7 +120,7 @@ const eventSchema = new Schema<IEvent>(
     price: {
       type: Number,
       required: [true, 'Price is required'],
-      min: [0, 'Price cannot be negative'],
+      min: [0, 'Price must be 0 or greater'],
       max: [10000, 'Price cannot exceed 10000']
     },
     image: {

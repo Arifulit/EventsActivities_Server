@@ -9,6 +9,7 @@ import {
   leaveEvent,
   saveEvent,
   getMyEvents,
+  getAllParticipants,
   getEventParticipants,
   updateEventStatus,
   getEventRevenue,
@@ -18,14 +19,14 @@ import { authenticate, authorize } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
 import { createEventValidation, updateEventValidation, eventIdValidation } from '../validations/event.validation';
 import { validateRequest } from '../middleware/validation.middleware';
+import { optionalUpload } from '../middleware/upload.middleware';
 
 const router = Router();
 
 // Public routes
 router.get('/', getEvents);
-router.get('/:id', getEventById); // Make event details public
 
-// Protected routes - specific routes first
+// Protected routes - specific routes first (keep these above parameterized :id routes)
 router.get('/my-events', authenticate, getMyEvents);
 router.get('/hosted-events', authenticate, getMyEvents);
 router.get('/my-hosted', authenticate, getMyEvents);
@@ -34,7 +35,9 @@ router.get('/my-saved', authenticate, getMyEvents);
 router.get('/my/:type', authenticate, getMyEvents);
 
 // Protected routes - specific paths before parameterized :id routes
-router.post('/', authenticate, authorize(UserRole.HOST, UserRole.ADMIN), createEventValidation, validateRequest, createEvent);
+// optionalUpload works with both JSON and form-data
+router.post('/', authenticate, authorize(UserRole.HOST, UserRole.ADMIN), optionalUpload, createEventValidation, validateRequest, createEvent);
+router.get('/participants', getAllParticipants); // Public endpoint - must be before /:id/participants
 router.get('/:id/participants', authenticate, eventIdValidation, validateRequest, getEventParticipants);
 router.get('/:id/bookings', authenticate, getEventBookings);
 router.get('/:id/revenue', authenticate, getEventRevenue);
@@ -48,7 +51,9 @@ router.post('/:id/save', authenticate, eventIdValidation, validateRequest, saveE
 router.post('/:id/my-save', authenticate, eventIdValidation, validateRequest, saveEvent);
 
 // Parameterized routes last
-router.put('/:id', authenticate, updateEventValidation, validateRequest, updateEvent);
+router.get('/:id', getEventById); // Make event details public - must be before PUT/DELETE with same param
+// optionalUpload works with both JSON and form-data
+router.put('/:id', authenticate, optionalUpload, updateEventValidation, validateRequest, updateEvent);
 router.delete('/:id', authenticate, eventIdValidation, validateRequest, deleteEvent);
 
 export default router;

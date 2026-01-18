@@ -11,7 +11,8 @@ import {
   discoverUsers,
   getUserEvents,
   changePassword,
-  getUserDashboard
+  getUserDashboard,
+  getUserDetails
 } from '../controllers/user.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { UserRole } from '../middleware/role.middleware';
@@ -27,6 +28,7 @@ router.get('/top-hosts', getTopHosts);
 router.get('/', authenticate, authorize(UserRole.ADMIN), getUsers);
 router.get('/dashboard', authenticate, getUserDashboard);
 router.get('/:userId/events', authenticate, getUserEvents);
+router.get('/:userId/details', authenticate, getUserDetails);
 router.post('/:userId/change-password', authenticate, changePassword);
 router.put('/:userId/change-password', authenticate, changePassword);
 router.get('/:id/public', getPublicUserProfile);

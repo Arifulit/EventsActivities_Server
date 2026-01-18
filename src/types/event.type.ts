@@ -21,15 +21,16 @@ export interface EventRequirement {
   isOptional?: boolean;
 }
 
-export type EventStatus = 'draft' | 'published' | 'cancelled' | 'completed';
+export type EventStatus = 'draft' | 'open' | 'full' | 'cancelled' | 'completed';
 export type EventType = 'in-person' | 'online' | 'hybrid';
 
-// Runtime values for validation
-export const EVENT_STATUSES = ['draft', 'published', 'cancelled', 'completed'] as const;
+// Runtime values for validation - must match Event model enum
+export const EVENT_STATUSES = ['draft', 'open', 'full', 'cancelled', 'completed'] as const;
 export const EVENT_TYPES = ['in-person', 'online', 'hybrid'] as const;
 // Runtime values for validation
 export const EVENT_CATEGORIES = [
   'conference',
+  'photography',
   'workshop',
   'seminar',
   'networking',
@@ -42,7 +43,9 @@ export const EVENT_CATEGORIES = [
   'arts',
   'music',
   'food',
+  'travel',
   'health',
+  'gaming',
   'other'
 ] as const;
 

@@ -27,6 +27,10 @@ import {
   getHostsForModeration,
   approveHost,
   rejectHost,
+  suspendHost,
+  unverifyHost,
+  verifyHost,
+  reinstateHost,
   flagEvent,
   getFlaggedContent,
   resolveFlaggedContent,
@@ -67,6 +71,10 @@ router.get('/hosts', getHostsForModeration);
 router.get('/hosts/:hostId/earnings', getHostEarnings);
 router.patch('/hosts/:hostId/approve', approveHost);
 router.patch('/hosts/:hostId/reject', rejectHost);
+router.patch('/hosts/:hostId/suspend', suspendHost);
+router.patch('/hosts/:hostId/verify', verifyHost);
+router.patch('/hosts/:hostId/unverify', unverifyHost);
+router.patch('/hosts/:hostId/reinstate', reinstateHost);
 
 // Event Management
 router.get('/events', getAllEventsAdmin);

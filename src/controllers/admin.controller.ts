@@ -5,6 +5,13 @@ import { Review } from '../models/review.model';
 import { Payment } from '../models/payment.model';
 import { successResponse, errorResponse, paginatedResponse } from '../utils/response';
 
+interface ActivityLogItem {
+  type: string;
+  message: string;
+  timestamp: Date;
+  [key: string]: any;
+}
+
 export const getAllUsers = async (req: Request, res: Response): Promise<any> => {
   try {
     const { search, role, isActive, isVerified, page = 1, limit = 20 } = req.query;
@@ -231,12 +238,21 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<any
 export const verifyUser = async (req: Request, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
-    const { isVerified = true } = req.body;
+    const { isVerified = true } = req.body || {};
+
+    if (!userId) {
+      return errorResponse(res, 'User ID is required', 400);
+    }
 
     const user = await User.findById(userId).select('-password');
 
     if (!user) {
       return errorResponse(res, 'User not found', 404);
+    }
+
+    // Ensure user object has isVerified property
+    if (typeof user.isVerified === 'undefined') {
+      return errorResponse(res, 'User verification status not available', 500);
     }
 
     user.isVerified = typeof isVerified === 'boolean' ? isVerified : true;
@@ -248,7 +264,8 @@ export const verifyUser = async (req: Request, res: Response): Promise<any> => {
       `User ${user.isVerified ? 'verified' : 'unverified'} successfully`
     );
   } catch (error: any) {
-    return errorResponse(res, error.message, 500);
+    console.error('Verify user error:', error);
+    return errorResponse(res, error.message || 'Failed to verify user', 500);
   }
 };
 
@@ -272,7 +289,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<any> => {
 export const banUser = async (req: Request, res: Response): Promise<any> => {
   try {
     const { userId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -568,27 +585,145 @@ export const getAllBookingsAdmin = async (req: Request, res: Response): Promise<
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<any> => {
   try {
+    const { Booking } = require('../models/booking.model');
+
+    // User Stats
     const totalUsers = await User.countDocuments();
+    const verifiedUsers = await User.countDocuments({ isVerified: true });
+    const bannedUsers = await User.countDocuments({ isActive: false });
+    const activeUsers = await User.countDocuments({ isActive: true });
+
+    // Event Stats
     const totalEvents = await Event.countDocuments();
     const activeEvents = await Event.countDocuments({ status: 'open' });
     const completedEvents = await Event.countDocuments({ status: 'completed' });
-    const verifiedUsers = await User.countDocuments({ isVerified: true });
-    const bannedUsers = await User.countDocuments({ isActive: false });
+    const cancelledEvents = await Event.countDocuments({ status: 'cancelled' });
+
+    // Booking Stats
+    const totalBookings = await Booking.countDocuments();
+    const confirmedBookings = await Booking.countDocuments({ status: 'confirmed' });
+    const pendingBookings = await Booking.countDocuments({ status: 'pending' });
+    const cancelledBookings = await Booking.countDocuments({ status: 'cancelled' });
+
+    // Revenue Stats
+    const paidBookings = await Booking.find({ paymentStatus: 'paid' });
+    const totalRevenue = paidBookings.reduce((sum: number, booking: any) => sum + (booking.amount || 0), 0);
+    
+    // Revenue by last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const revenueLastMonth = await Booking.aggregate([
+      {
+        $match: {
+          paymentStatus: 'paid',
+          updatedAt: { $gte: thirtyDaysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const monthlyRevenue = revenueLastMonth[0]?.total || 0;
+
+    // Recent Activity Log
+    const recentUsers = await User.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('fullName email createdAt role');
+
+    const recentEvents = await Event.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('title createdAt status hostId')
+      .populate('hostId', 'fullName');
+
+    const recentBookings = await Booking.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('userId eventId amount status paymentStatus createdAt')
+      .populate('userId', 'fullName email')
+      .populate('eventId', 'title');
+
+    // Build activity log
+    const activityLog: ActivityLogItem[] = [];
+
+    // Add recent users
+    recentUsers.forEach(user => {
+      activityLog.push({
+        type: 'user_signup',
+        message: `${user.fullName} signed up`,
+        timestamp: user.createdAt,
+        user: user.fullName,
+        role: user.role
+      });
+    });
+
+    // Add recent events
+    recentEvents.forEach(event => {
+      activityLog.push({
+        type: 'event_created',
+        message: `${event.title} event created by ${(event.hostId as any)?.fullName || 'Unknown'}`,
+        timestamp: event.createdAt,
+        eventTitle: event.title,
+        status: event.status
+      });
+    });
+
+    // Add recent bookings
+    recentBookings.forEach((booking: any) => {
+      activityLog.push({
+        type: 'booking_created',
+        message: `${booking.userId?.fullName} booked ${booking.eventId?.title}`,
+        timestamp: booking.createdAt,
+        user: booking.userId?.fullName,
+        event: booking.eventId?.title,
+        amount: booking.amount,
+        status: booking.status
+      });
+    });
+
+    // Sort activity by timestamp
+    activityLog.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     return successResponse(
       res,
       {
-        totalUsers,
-        verifiedUsers,
-        bannedUsers,
-        totalEvents,
-        activeEvents,
-        completedEvents
+        stats: {
+          users: {
+            total: totalUsers,
+            active: activeUsers,
+            verified: verifiedUsers,
+            banned: bannedUsers
+          },
+          events: {
+            total: totalEvents,
+            active: activeEvents,
+            completed: completedEvents,
+            cancelled: cancelledEvents
+          },
+          bookings: {
+            total: totalBookings,
+            confirmed: confirmedBookings,
+            pending: pendingBookings,
+            cancelled: cancelledBookings
+          },
+          revenue: {
+            total: totalRevenue,
+            lastMonth: monthlyRevenue,
+            currency: 'USD'
+          }
+        },
+        recentActivity: activityLog.slice(0, 15)
       },
       'Dashboard stats retrieved successfully'
     );
   } catch (error: any) {
-    return errorResponse(res, error.message, 500);
+    console.error('Dashboard stats error:', error);
+    return errorResponse(res, error.message || 'Failed to get dashboard stats', 500);
   }
 };
 
@@ -622,7 +757,7 @@ export const getAllReviews = async (req: Request, res: Response): Promise<any> =
 export const deleteReview = async (req: Request, res: Response): Promise<any> => {
   try {
     const { reviewId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};
 
     const review = await Review.findByIdAndDelete(reviewId);
     if (!review) {
@@ -754,7 +889,7 @@ export const approveHost = async (req: Request, res: Response): Promise<any> => 
 export const rejectHost = async (req: Request, res: Response): Promise<any> => {
   try {
     const { hostId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};
 
     const host = await User.findByIdAndUpdate(
       hostId,
@@ -773,6 +908,131 @@ export const rejectHost = async (req: Request, res: Response): Promise<any> => {
     );
   } catch (error: any) {
     return errorResponse(res, error.message, 500);
+  }
+};
+
+export const suspendHost = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+    const { reason } = req.body || {};
+
+    if (!hostId) {
+      return errorResponse(res, 'Host ID is required', 400);
+    }
+
+    const host = await User.findById(hostId);
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    // Update host status to suspended
+    const updateData: any = {
+      isActive: false,
+      userStatus: 'suspended'
+    };
+
+    if (reason) {
+      updateData.suspensionReason = reason;
+    }
+
+    const updatedHost = await User.findByIdAndUpdate(
+      hostId,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    return successResponse(
+      res,
+      updatedHost,
+      `Host suspended successfully${reason ? ': ' + reason : ''}`
+    );
+  } catch (error: any) {
+    console.error('Suspend host error:', error);
+    return errorResponse(res, error.message || 'Failed to suspend host', 500);
+  }
+};
+
+export const unverifyHost = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+    const { reason } = req.body || {};
+
+    if (!hostId) {
+      return errorResponse(res, 'Host ID is required', 400);
+    }
+
+    const host = await User.findByIdAndUpdate(
+      hostId,
+      { isVerified: false },
+      { new: true }
+    ).select('-password');
+
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    return successResponse(
+      res,
+      host,
+      `Host unverified successfully${reason ? ': ' + reason : ''}`
+    );
+  } catch (error: any) {
+    console.error('Unverify host error:', error);
+    return errorResponse(res, error.message || 'Failed to unverify host', 500);
+  }
+};
+
+export const verifyHost = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+
+    if (!hostId) {
+      return errorResponse(res, 'Host ID is required', 400);
+    }
+
+    const host = await User.findByIdAndUpdate(
+      hostId,
+      { isVerified: true },
+      { new: true }
+    ).select('-password');
+
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    return successResponse(res, host, 'Host verified successfully');
+  } catch (error: any) {
+    console.error('Verify host error:', error);
+    return errorResponse(res, error.message || 'Failed to verify host', 500);
+  }
+};
+
+export const reinstateHost = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { hostId } = req.params;
+
+    if (!hostId) {
+      return errorResponse(res, 'Host ID is required', 400);
+    }
+
+    const host = await User.findByIdAndUpdate(
+      hostId,
+      { 
+        isActive: true,
+        userStatus: 'active',
+        $unset: { suspensionReason: 1 }
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!host) {
+      return errorResponse(res, 'Host not found', 404);
+    }
+
+    return successResponse(res, host, 'Host reinstated successfully');
+  } catch (error: any) {
+    console.error('Reinstate host error:', error);
+    return errorResponse(res, error.message || 'Failed to reinstate host', 500);
   }
 };
 
@@ -815,7 +1075,7 @@ export const getReportedEvents = async (req: Request, res: Response): Promise<an
 export const flagEvent = async (req: Request, res: Response): Promise<any> => {
   try {
     const { eventId } = req.params;
-    const { reason } = req.body;
+    const { reason } = req.body || {};
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -1491,7 +1751,7 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<an
   }
 };
 
-export const getHostEarnings = async (req: Request, res: Response): Promise<any> => {
+export const getHostEarnings = async (req: any, res: Response): Promise<any> => {
   try {
     const { hostId } = req.params;
     const page = parseInt(req.query.page as string) || 1;
@@ -1504,6 +1764,11 @@ export const getHostEarnings = async (req: Request, res: Response): Promise<any>
     const host = await User.findById(hostId);
     if (!host) {
       return errorResponse(res, 'Host not found', 404);
+    }
+
+    // Check permissions - host can view own earnings, admin can view any
+    if (req.user && req.user.role !== 'admin' && req.user._id.toString() !== hostId) {
+      return errorResponse(res, 'Insufficient permissions', 403);
     }
 
     // Build query
